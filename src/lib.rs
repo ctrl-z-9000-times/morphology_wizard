@@ -50,6 +50,9 @@ mod python {
         m.add_class::<super::Instruction>()?;
         m.add_class::<super::Node>()?;
 
+        /// Execute a list of neuron growth instructions.
+        ///
+        /// Returns a list of Nodes in topologically sorted order.
         #[pyfn(m)]
         fn create(instructions: Vec<super::Instruction>) -> Vec<super::Node> {
             super::create(&instructions)
@@ -63,26 +66,32 @@ mod python {
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Morphology {
-    /// TODO
+    /// The balancing factor controls the trade-off between minimizing the
+    /// amount of neurite material and minimizing conduction delays.  
+    /// Lower factors favor using less neurite material, higher factors favor
+    /// more direct routes from each node to the soma.
     pub balancing_factor: f32,
 
-    /// TODO
-    pub extension_angle: f32,
-
-    /// TODO
+    /// Maximum distance for primary extension segments.  
     pub extension_distance: f32,
 
-    /// TODO
-    pub branch_angle: f32,
+    /// Maximum angle between a primary extension and its parent segment.  
+    /// This is sometimes also known as the meander.  
+    /// Units: Radians  
+    pub extension_angle: f32,
 
-    /// TODO
+    /// Maximum distance for secondary branching segments.  
     pub branch_distance: f32,
 
-    /// TODO
-    /// Prefer extending existing branches over making new branches.
+    /// Maximum angle between a secondary branch and its parent segment.  
+    /// Units: Radians  
+    pub branch_angle: f32,
+
+    /// Prefer extending existing branches over making new branches.  
     pub extend_before_branch: bool,
 
-    /// TODO
+    /// Maximum number of secondary branches that any segment can have.  
+    /// Root nodes can have an unlimited number of children.  
     pub maximum_branches: u32,
 }
 
@@ -107,6 +116,9 @@ impl Morphology {
     fn __new__() -> Self {
         Self::default()
     }
+    fn __str__(&self) -> String {
+        format!("{self:#?}")
+    }
 }
 
 /// Container for a single step of a neuron growth program.
@@ -116,21 +128,23 @@ impl Morphology {
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Instruction {
-    /// TODO
+    /// The morphological parameters control the dendrite / axon growth process.
     ///
-    /// Python API:
-    ///     Do not modify this attribute in-place!
-    ///     Accessing this attribute creates a new copy of it.
+    /// Python API:  
+    ///     Do not modify this attribute in-place!  
+    ///     Always assign an entire morphology to it.  
+    ///     Accessing this attribute creates a new copy of it.  
     pub morphology: Option<Morphology>,
 
-    /// Three dimensional locations where this instruction will grow to.
+    /// Three dimensional locations where this instruction will grow to.  
+    /// The units are arbitrary and user defined.  
     pub carrier_points: Vec<[f32; 3]>,
 
     /// Specifies the prior growth that this instruction will start from.
-    /// The roots list is a list of indices into the instructions list.
+    /// Roots is a list of indices into the instructions list.
     ///
-    /// All indices in this list must have already been executed.
-    /// Roots are only applicable to dendrite / axon growth instructions.
+    /// All instructions in the roots list must have already been executed.  
+    /// Roots are only applicable to dendrite / axon growth instructions.  
     pub roots: Vec<u32>,
 }
 
@@ -140,6 +154,9 @@ impl Instruction {
     #[new]
     fn __new__() -> Self {
         Self::default()
+    }
+    fn __str__(&self) -> String {
+        format!("{self:#?}")
     }
 }
 
@@ -160,7 +177,7 @@ impl Instruction {
     }
 }
 
-/// TODO
+/// Container for a location in a neuron.
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Node {
@@ -173,12 +190,13 @@ pub struct Node {
 
 #[cfg_attr(feature = "pyo3", pymethods)]
 impl Node {
-    /// Three dimensional coordinates of this node. Located at the center of the
-    /// soma (for root nodes) or at the tip of the segment (for branch nodes).
+    /// Three dimensional coordinates of this node.  
+    /// Located at the center of the soma (for root nodes) or at the tip of the
+    /// segment (for branch nodes).
     pub fn coordinates(&self) -> [f32; 3] {
         self.coordinates
     }
-    /// Is this a neuron soma?
+    /// Is this node a neuron's soma?
     pub fn is_root(&self) -> bool {
         self.parent_index == u32::MAX
     }
@@ -195,12 +213,16 @@ impl Node {
     pub fn instruction_index(&self) -> u32 {
         self.instruction_index
     }
+    /// Number of extensions and branches descended from this node.
     pub fn num_children(&self) -> u32 {
         self.num_children
     }
-    /// Distance from this node to the soma.
+    /// Distance from this node to the soma, by traveling through the neuron.
     pub fn path_length(&self) -> f32 {
         self.path_length
+    }
+    fn __str__(&self) -> String {
+        format!("{self:#?}")
     }
 }
 impl Node {
@@ -353,6 +375,8 @@ impl Ord for PotentialSegment {
 }
 
 /// Execute a list of neuron growth instructions.
+///
+/// Returns a list of Nodes in topologically sorted order.
 pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     Instruction::check(instructions);
     // Preallocate space for all of the returned nodes.
