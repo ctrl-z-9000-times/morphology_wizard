@@ -1,0 +1,15 @@
+[package]
+    name = "neuron_morphology"
+    edition = "2021"
+    authors = ["David McDougall <dam1784@rit.edu>"]
+    license = "Proprietary"
+    description = "Create realistic neuron morphologies"
+
+[lib]
+    crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+    bitvec = "1.*"
+    kiddo = "4.*"
+    pyo3 = {version = "0.22.*", features = ["extension-module", "serde"], optional = true}
+    serde = {version = "1.*", features = ["derive"]}
