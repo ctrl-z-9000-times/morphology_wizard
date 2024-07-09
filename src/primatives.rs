@@ -32,7 +32,9 @@ pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices
         vertex[2] += a[2];
     }
     // Make the index array.
-    let mut indices = Vec::with_capacity(2 * 3 * num_slices as usize);
+    let num_side_triangles = 2 * num_slices;
+    let num_end_triangles = 2 * (num_slices - 2);
+    let mut indices = Vec::<u32>::with_capacity(3 * (num_side_triangles + num_end_triangles) as usize);
     for i in 0..num_slices {
         indices.push(2 * i + 2);
         indices.push(2 * i + 1);
@@ -40,6 +42,17 @@ pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices
         indices.push(2 * i + 1);
         indices.push(2 * i + 2);
         indices.push(2 * i + 3);
+    }
+    // Make disks over the ends of the cylinder to hide in interior.
+    for i in 1..num_slices - 1 {
+        // The base vertexes (A side) are on even indices.
+        indices.push(0);
+        indices.push(2 * i);
+        indices.push(2 * (i + 1));
+        // The tip vertexes (B side) are on odd indices.
+        indices.push(1);
+        indices.push(1 + 2 * i);
+        indices.push(1 + 2 * (i + 1));
     }
     (vertices, indices)
 }
@@ -66,7 +79,7 @@ pub fn sphere(center: &[f32; 3], radius: f32, slices: u32) -> (Vec<[f32; 3]>, Ve
     }
     // Calculate The Index Positions
     let num_triangles = 2 * slices * (stacks + 1);
-    let mut indices = Vec::with_capacity(3 * num_triangles as usize);
+    let mut indices = Vec::<u32>::with_capacity(3 * num_triangles as usize);
     for i in 0..slices * (stacks + 1) {
         indices.push(i);
         indices.push(i + slices + 1);

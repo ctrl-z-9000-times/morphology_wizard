@@ -2,7 +2,6 @@ from panda3d.core import Geom, GeomNode, GeomTriangles, GeomVertexFormat, GeomVe
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import KeyboardButton, MouseButton, LVecBase3, Quat, getDefaultCoordinateSystem, WindowProperties
-from primatives import Sphere, Cylinder
 
 class MorphologyViewer(ShowBase):
     def __init__(self):
