@@ -200,6 +200,10 @@ impl Node {
     pub fn is_root(&self) -> bool {
         self.parent_index == u32::MAX
     }
+    /// Is this node a section of a dendrite or axon?
+    pub fn is_segment(&self) -> bool {
+        self.parent_index != u32::MAX
+    }
     /// Index into the Nodes list of this segment's parent node.  
     /// Returns None if this is a root node.  
     pub fn parent_index(&self) -> Option<u32> {
@@ -270,7 +274,7 @@ impl<'a> WorkingData<'a> {
     /// This also filters out segments which are obviously invalid.
     fn consider_all_potential_segments(&mut self, parent_index: u32, parent_node: &Node) {
         // First check the easy morphological constraints.
-        if !parent_node.is_root() && self.morphology.maximum_branches < parent_node.num_children {
+        if parent_node.is_segment() && parent_node.num_children > self.morphology.maximum_branches {
             return;
         }
         // Don't check the segment angle because it's expensive and it will need
@@ -429,7 +433,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             let coordinates = &instr.carrier_points[carrier_index as usize];
             let segment_length = distance(parent_coords, coordinates);
             //
-            if num_siblings > morph.maximum_branches {
+            if parent_node.is_segment() && num_siblings > morph.maximum_branches {
                 continue;
             }
             // Check maximum extension/branching distance.
@@ -447,7 +451,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             } else {
                 morph.branch_angle
             };
-            if maximum_angle < PI - f32::EPSILON && !parent_node.is_root() {
+            if maximum_angle < PI - f32::EPSILON && parent_node.is_segment() {
                 let grandparent_coords = &nodes[parent_node.parent_index as usize].coordinates;
                 let parent_vector = sub(grandparent_coords, parent_coords);
                 let segment_vector = sub(parent_coords, coordinates);
