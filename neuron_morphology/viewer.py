@@ -9,11 +9,11 @@ class MorphologyViewer(ShowBase):
         ShowBase.__init__(self)
         self.scene = None
         # Setup keyboard movement.
-        self.base_speed = 10000.0
-        self.sprint_multiplier = 10.0
+        self.base_speed = 2.0e4
+        self.sprint_multiplier = 20.0
         self.task_mgr.add(self._keyboard_movement, 'keyboard_movement')
         # Setup mouse look.
-        self.mouse_sensitivity = 1.0
+        self.mouse_sensitivity = 4.0
         self._mouse1_down = False
         self.disableMouse()
         self._set_mouse_visible(True)
@@ -56,29 +56,36 @@ class MorphologyViewer(ShowBase):
         a_button = KeyboardButton.ascii_key('a')
         s_button = KeyboardButton.ascii_key('s')
         d_button = KeyboardButton.ascii_key('d')
-        rctrl_button = KeyboardButton.lcontrol()
-        space_button = KeyboardButton.space()
-        shift_button = KeyboardButton.lshift()
+        lctrl_button  = KeyboardButton.lcontrol()
+        space_button  = KeyboardButton.space()
+        lshift_button = KeyboardButton.lshift()
+        up_button     = KeyboardButton.up()
+        down_button   = KeyboardButton.down()
+        left_button   = KeyboardButton.left()
+        right_button  = KeyboardButton.right()
+        enter_button  = KeyboardButton.enter()
+        rctrl_button  = KeyboardButton.rcontrol()
+        rshift_button = KeyboardButton.rshift()
 
         forward_speed = 0.0
-        if self._button_down(w_button):
+        if self._button_down(w_button) or self._button_down(up_button):
             forward_speed += self.base_speed
-        if self._button_down(s_button):
+        if self._button_down(s_button) or self._button_down(down_button):
             forward_speed -= 0.5 * self.base_speed
 
         sideways_speed = 0.0
-        if self._button_down(a_button):
-            sideways_speed -= self.base_speed
-        if self._button_down(d_button):
-            sideways_speed += self.base_speed
+        if self._button_down(a_button) or self._button_down(left_button):
+            sideways_speed -= 0.75 * self.base_speed
+        if self._button_down(d_button) or self._button_down(right_button):
+            sideways_speed += 0.75 * self.base_speed
 
         upwards_speed = 0.0
-        if self._button_down(rctrl_button):
-            upwards_speed -= self.base_speed
-        if self._button_down(space_button):
-            upwards_speed += self.base_speed
+        if self._button_down(space_button) or self._button_down(enter_button):
+            upwards_speed += 0.75 * self.base_speed
+        if self._button_down(lctrl_button) or self._button_down(rctrl_button):
+            upwards_speed -= 0.75 * self.base_speed
 
-        if self._button_down(shift_button):
+        if self._button_down(lshift_button) or self._button_down(rshift_button):
             forward_speed  *= self.sprint_multiplier
             sideways_speed *= self.sprint_multiplier
             upwards_speed  *= self.sprint_multiplier
