@@ -9,7 +9,8 @@
     crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-    bitvec = "1.*"
-    kiddo = "4.*"
-    pyo3 = {version = "0.22.*", features = ["extension-module", "serde"], optional = true}
-    serde = {version = "1.*", features = ["derive"]}
+    bitvec = "1"
+    kiddo = "4"
+    numpy = "0.21"
+    pyo3 = {version = "0.21", features = ["extension-module", "serde"], optional = true}
+    serde = {version = "1", features = ["derive"]}

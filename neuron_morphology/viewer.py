@@ -1,8 +1,7 @@
 from panda3d.core import Geom, GeomNode, GeomTriangles, GeomVertexFormat, GeomVertexData, GeomVertexWriter
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
-from panda3d.core import KeyboardButton, MouseButton, LVecBase3, Quat, getDefaultCoordinateSystem
-from pandac.PandaModules import WindowProperties
+from panda3d.core import KeyboardButton, MouseButton, LVecBase3, Quat, getDefaultCoordinateSystem, WindowProperties
 from primatives import Sphere, Cylinder
 
 class MorphologyViewer(ShowBase):
@@ -26,45 +25,28 @@ class MorphologyViewer(ShowBase):
         # DEBUG: Print all attributes of this ShowBase instance.
         # for x in sorted(dir(self)): print(x)
 
-    def update_scene(self, nodes):
+    def update_scene(self, nodes, vertices, indices):
         # Discard any existing scene.
         if self.scene is not None:
             self.scene.removeNode()
 
-        # Create geometric primatives for every node in the morphology.
-        primatives = []
-        for node in nodes:
-            if node.is_root():
-                radius = 15
-                slices=10
-                primatives.append(Sphere(node.coordinates(), radius, slices))
-            else:
-                parent = nodes[node.parent_index()]
-                radius = 3
-                slices = 5
-                primatives.append(Cylinder(node.coordinates(), parent.coordinates(), radius, slices))
-
         # Copy the geometric data into panda3d's internal data structures.
         v_data = GeomVertexData('neuron_morphology', GeomVertexFormat.getV3(), Geom.UHStatic)
-        v_size = sum(len(obj3d.get_vertices()) for obj3d in primatives)
-        v_data.setNumRows(v_size)
-        v_writer = GeomVertexWriter(v_data, 'vertex')
+        v_data.unclean_set_num_rows(round(len(vertices) / 3))
+        v_array = v_data.modify_array(0)
+        view = memoryview(v_array).cast('B').cast('f')
+        view[:] = vertices
 
+        t_data = GeomTriangles(Geom.UH_static)
+        t_data.set_index_type(Geom.NT_uint32)
+        t_array = t_data.modify_vertices()
+        t_array.unclean_set_num_rows(len(indices))
+        view = memoryview(t_array).cast('B').cast('I')
+        view[:] = indices
+
+        # Setup the game engine to render the new mesh.
         geom = Geom(v_data)
-        offset = 0
-        for object3d in primatives:
-            for v in object3d.get_vertices():
-                v_writer.addData3(*v)
-
-            prim = GeomTriangles(Geom.UHStatic)
-            for tri in object3d.get_indices():
-                prim.addVertex(int(tri[0] + offset))
-                prim.addVertex(int(tri[1] + offset))
-                prim.addVertex(int(tri[2] + offset))
-                prim.closePrimitive()
-            geom.addPrimitive(prim)
-            offset += len(object3d.get_vertices())
-
+        geom.addPrimitive(t_data)
         node = GeomNode('neuron_morphology')
         node.addGeom(geom)
         self.scene = self.render.attachNewNode(node)

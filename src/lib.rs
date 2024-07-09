@@ -15,6 +15,9 @@
 //!     Axons and an Application to Electroceutical Modeling. Front. Comput.
 //!     Neurosci. 14:13. <https://doi.org/10.3389/fncom.2020.00013>
 
+#[cfg(feature = "pyo3")]
+mod primatives;
+
 use bitvec::prelude::*;
 use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
 #[cfg(feature = "pyo3")]
@@ -26,6 +29,7 @@ use std::f32::consts::PI;
 
 #[cfg(feature = "pyo3")]
 mod python {
+    use numpy::{IntoPyArray, PyArray1};
     use pyo3::prelude::*;
 
     /// Create realistic neuron morphologies.
@@ -58,12 +62,63 @@ mod python {
             super::create(&instructions)
         }
 
+        #[pyfn(m)]
+        fn create_and_render(
+            py: Python,
+            instructions: Vec<super::Instruction>,
+        ) -> (Vec<super::Node>, Bound<PyArray1<f32>>, Bound<PyArray1<u32>>) {
+            let nodes = super::create(&instructions);
+            //
+            let mut vertices = Vec::new();
+            let mut indicies = Vec::new();
+            let mut offset = 0;
+            for node in &nodes {
+                if node.is_root() {
+                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, 10.0, 12);
+                    seg_i.iter_mut().for_each(|i| *i += offset);
+                    indicies.append(&mut seg_i);
+                    offset += seg_v.len() as u32;
+                    vertices.append(&mut seg_v);
+                } else {
+                    let parent_node = &nodes[node.parent_index as usize];
+                    let (mut seg_v, mut seg_i) =
+                        crate::primatives::cylinder(&parent_node.coordinates, &node.coordinates, 2.0, 2.0, 5);
+                    seg_i.iter_mut().for_each(|i| *i += offset);
+                    indicies.append(&mut seg_i);
+                    offset += seg_v.len() as u32;
+                    vertices.append(&mut seg_v);
+                }
+            }
+            let vertices = transmute_flatten_coordinates(vertices);
+            (nodes, vertices.into_pyarray_bound(py), indicies.into_pyarray_bound(py))
+        }
+
         Ok(())
+    }
+
+    /// Transmute the vector without needlessly copying the data.
+    fn transmute_flatten_coordinates(data: Vec<[f32; 3]>) -> Vec<f32> {
+        // Check the data alignment.
+        assert_eq!(std::mem::align_of::<[f32; 3]>(), std::mem::align_of::<f32>());
+        // Take manual control over the data vector.
+        let mut data = std::mem::ManuallyDrop::new(data);
+        unsafe {
+            // Disassemble the vector.
+            let ptr = data.as_mut_ptr();
+            let mut len = data.len();
+            let mut cap = data.capacity();
+            // Transmute the vector.
+            let ptr = std::mem::transmute::<*mut [f32; 3], *mut f32>(ptr);
+            len *= 3;
+            cap *= 3;
+            // Reassemble and return the data.
+            Vec::from_raw_parts(ptr, len, cap)
+        }
     }
 }
 
 /// Container for the morphological parameters of a neuron's dendrite or axon.
-#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
+#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Morphology {
     /// The balancing factor controls the trade-off between minimizing the
@@ -125,7 +180,7 @@ impl Morphology {
 ///
 /// If the morphology is missing, then this specifies a neuron soma,
 /// otherwise this specifies a dendrite or axon.
-#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
+#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Instruction {
     /// The morphological parameters control the dendrite / axon growth process.
@@ -178,7 +233,7 @@ impl Instruction {
 }
 
 /// Container for a location in a neuron.
-#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all, eq))]
+#[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Node {
     coordinates: [f32; 3],
@@ -321,7 +376,7 @@ impl<'a> WorkingData<'a> {
             // Iterate through the unoccupied carrier points to make use of the bitvec package's optimizations.
             for carrier_index in self.occupied.iter_zeros() {
                 let coordinates = &self.carrier_points[carrier_index];
-                let segment_length = distance(&parent_node.coordinates, coordinates);
+                let segment_length = linalg::distance(&parent_node.coordinates, coordinates);
                 //
                 self.potential.push(PotentialSegment {
                     branch_num,
@@ -431,7 +486,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             let num_siblings = parent_node.num_children;
             let parent_coords = &parent_node.coordinates;
             let coordinates = &instr.carrier_points[carrier_index as usize];
-            let segment_length = distance(parent_coords, coordinates);
+            let segment_length = linalg::distance(parent_coords, coordinates);
             //
             if parent_node.is_segment() && num_siblings > morph.maximum_branches {
                 continue;
@@ -453,9 +508,9 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             };
             if maximum_angle < PI - f32::EPSILON && parent_node.is_segment() {
                 let grandparent_coords = &nodes[parent_node.parent_index as usize].coordinates;
-                let parent_vector = sub(grandparent_coords, parent_coords);
-                let segment_vector = sub(parent_coords, coordinates);
-                let segment_angle = angle(&parent_vector, &segment_vector);
+                let parent_vector = linalg::sub(grandparent_coords, parent_coords);
+                let segment_vector = linalg::sub(parent_coords, coordinates);
+                let segment_angle = linalg::angle(&parent_vector, &segment_vector);
                 if segment_angle > maximum_angle {
                     continue;
                 }
@@ -494,25 +549,97 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     nodes
 }
 
-fn distance(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-    let c0 = (a[0] - b[0]).powi(2);
-    let c1 = (a[1] - b[1]).powi(2);
-    let c2 = (a[2] - b[2]).powi(2);
-    (c0 + c1 + c2).sqrt()
-}
+#[allow(dead_code)]
+mod linalg {
+    pub fn distance(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+        mag(&sub(a, b))
+    }
 
-fn angle(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-    (dot(a, b) / norm(a) / norm(b)).acos()
-}
+    pub fn angle(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+        (dot(a, b) / mag(a) / mag(b)).acos()
+    }
 
-fn dot(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
+    pub fn dot(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+        a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    }
 
-fn norm(x: &[f32; 3]) -> f32 {
-    (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)).sqrt()
-}
+    pub fn mag(x: &[f32; 3]) -> f32 {
+        (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)).sqrt()
+    }
 
-fn sub(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
-    [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+    pub fn sub(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
+        [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+    }
+
+    pub fn cross(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    }
+
+    /// Calculate a rotation matrix to transform from vector A to vector B.
+    ///
+    /// Both argument must already be normalized (magnitude of one).
+    ///
+    /// https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d/476311#476311
+    pub fn rotate_align(a: &[f32; 3], b: &[f32; 3]) -> [[f32; 3]; 3] {
+        let c = dot(a, b); // Cosine of angle
+        let c1 = c + 1.0;
+        if c1.abs() < f32::EPSILON {
+            todo!()
+        } else {
+            let v = cross(a, b);
+            // Skew symmetric cross-product matrix.
+            let vx = [[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]];
+            // Calculate: identity-matrix + vx + vx^2 / c1
+            let mut vx2 = mat3x3_sqr(&vx);
+            max3x3_div_scalar(&mut vx2, c1);
+            max3x3_add(&mut vx2, &vx);
+            vx2[0][0] += 1.0;
+            vx2[1][1] += 1.0;
+            vx2[2][2] += 1.0;
+            vx2
+        }
+    }
+
+    fn mat3x3_sqr(mat: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
+        let mut msqr = [[0.0; 3]; 3];
+        for row in 0..3 {
+            for col in 0..3 {
+                for inner in 0..3 {
+                    msqr[row][col] += mat[row][inner] * mat[inner][col];
+                }
+            }
+        }
+        msqr
+    }
+
+    fn max3x3_add(a: &mut [[f32; 3]; 3], b: &[[f32; 3]; 3]) {
+        for row in 0..3 {
+            for col in 0..3 {
+                a[row][col] += b[row][col];
+            }
+        }
+    }
+
+    fn max3x3_div_scalar(mat: &mut [[f32; 3]; 3], div: f32) {
+        let factor = 1.0 / div;
+        for row in 0..3 {
+            for col in 0..3 {
+                mat[row][col] *= factor;
+            }
+        }
+    }
+
+    pub fn vec_mat_mult(vec: &mut [f32; 3], mat: &[[f32; 3]; 3]) {
+        let mut result = [0.0, 0.0, 0.0];
+        for col in 0..3 {
+            for inner in 0..3 {
+                result[col] += vec[inner] * mat[col][inner];
+            }
+        }
+        *vec = result;
+    }
 }
