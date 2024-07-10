@@ -15,17 +15,8 @@
 //!     Axons and an Application to Electroceutical Modeling. Front. Comput.
 //!     Neurosci. 14:13. <https://doi.org/10.3389/fncom.2020.00013>
 
-#[cfg(feature = "pyo3")]
+mod linalg;
 mod primatives;
-
-use bitvec::prelude::*;
-use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
-#[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-use std::f32::consts::PI;
 
 #[cfg(feature = "pyo3")]
 mod python {
@@ -50,24 +41,24 @@ mod python {
     ///     Neurosci. 14:13. https://doi.org/10.3389/fncom.2020.00013
     #[pymodule]
     fn neuron_morphology(m: &Bound<PyModule>) -> PyResult<()> {
-        m.add_class::<super::Morphology>()?;
-        m.add_class::<super::Instruction>()?;
-        m.add_class::<super::Node>()?;
+        m.add_class::<crate::Morphology>()?;
+        m.add_class::<crate::Instruction>()?;
+        m.add_class::<crate::Node>()?;
 
         /// Execute a list of neuron growth instructions.
         ///
         /// Returns a list of Nodes in topologically sorted order.
         #[pyfn(m)]
-        fn create(instructions: Vec<super::Instruction>) -> Vec<super::Node> {
-            super::create(&instructions)
+        fn create(instructions: Vec<crate::Instruction>) -> Vec<crate::Node> {
+            crate::create(&instructions)
         }
 
         #[pyfn(m)]
         fn create_and_render(
             py: Python,
-            instructions: Vec<super::Instruction>,
-        ) -> (Vec<super::Node>, Bound<PyArray1<f32>>, Bound<PyArray1<u32>>) {
-            let nodes = super::create(&instructions);
+            instructions: Vec<crate::Instruction>,
+        ) -> (Vec<crate::Node>, Bound<PyArray1<f32>>, Bound<PyArray1<u32>>) {
+            let nodes = crate::create(&instructions);
             //
             let mut vertices = Vec::new();
             let mut indicies = Vec::new();
@@ -94,7 +85,9 @@ mod python {
                 }
             }
             let vertices = transmute_flatten_coordinates(vertices);
-            (nodes, vertices.into_pyarray_bound(py), indicies.into_pyarray_bound(py))
+            let vertices_py = vertices.into_pyarray_bound(py);
+            let indicies_py = indicies.into_pyarray_bound(py);
+            (nodes, vertices_py, indicies_py)
         }
 
         Ok(())
@@ -121,6 +114,15 @@ mod python {
     }
 }
 
+use bitvec::prelude::*;
+use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use std::f32::consts::PI;
+
 /// Container for the morphological parameters of a neuron's dendrite or axon.
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
@@ -132,6 +134,7 @@ pub struct Morphology {
     pub balancing_factor: f32,
 
     /// Maximum distance for primary extension segments.  
+    /// Units: Microns  
     pub extension_distance: f32,
 
     /// Maximum angle between a primary extension and its parent segment.  
@@ -140,6 +143,7 @@ pub struct Morphology {
     pub extension_angle: f32,
 
     /// Maximum distance for secondary branching segments.  
+    /// Units: Microns  
     pub branch_distance: f32,
 
     /// Maximum angle between a secondary branch and its parent segment.  
@@ -196,7 +200,7 @@ pub struct Instruction {
     pub morphology: Option<Morphology>,
 
     /// Three dimensional locations where this instruction will grow to.  
-    /// The units are arbitrary and user defined.  
+    /// Units: Microns  
     pub carrier_points: Vec<[f32; 3]>,
 
     /// Specifies the prior growth that this instruction will start from.
@@ -222,12 +226,12 @@ impl Instruction {
 impl Instruction {
     fn check(instructions: &[Instruction]) {
         for (instr_index, instr) in instructions.iter().enumerate() {
-            if let Some(ref morph) = instr.morphology {
-                assert!(0.0 <= morph.balancing_factor);
-                assert!(0.0 <= morph.extension_distance);
-                assert!(0.0 <= morph.branch_distance);
-                assert!((0.0..=PI).contains(&morph.extension_angle));
-                assert!((0.0..=PI).contains(&morph.branch_angle));
+            if let Some(ref morphology) = instr.morphology {
+                assert!(morphology.balancing_factor >= 0.0);
+                assert!(morphology.extension_distance >= 0.0);
+                assert!(morphology.branch_distance >= 0.0);
+                assert!((0.0..=PI).contains(&morphology.extension_angle));
+                assert!((0.0..=PI).contains(&morphology.branch_angle));
                 assert!(instr.roots.iter().all(|&root_instr| root_instr < instr_index as u32));
             } else {
                 assert!(instr.roots.is_empty(), "Missing morphology parameters");
@@ -553,99 +557,4 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
         sections.push((section_start, nodes.len() as u32));
     }
     nodes
-}
-
-#[allow(dead_code)]
-mod linalg {
-    pub fn distance(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-        mag(&sub(a, b))
-    }
-
-    pub fn angle(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-        (dot(a, b) / mag(a) / mag(b)).acos()
-    }
-
-    pub fn dot(a: &[f32; 3], b: &[f32; 3]) -> f32 {
-        a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-    }
-
-    pub fn mag(x: &[f32; 3]) -> f32 {
-        (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)).sqrt()
-    }
-
-    pub fn sub(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
-        [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
-    }
-
-    pub fn cross(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
-        [
-            a[1] * b[2] - a[2] * b[1],
-            a[2] * b[0] - a[0] * b[2],
-            a[0] * b[1] - a[1] * b[0],
-        ]
-    }
-
-    /// Calculate a rotation matrix to transform from vector A to vector B.
-    ///
-    /// Both argument must already be normalized (magnitude of one).
-    ///
-    /// https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d/476311#476311
-    pub fn rotate_align(a: &[f32; 3], b: &[f32; 3]) -> [[f32; 3]; 3] {
-        let c = dot(a, b); // Cosine of angle
-        let c1 = c + 1.0;
-        if c1.abs() < f32::EPSILON {
-            todo!()
-        } else {
-            let v = cross(a, b);
-            // Skew symmetric cross-product matrix.
-            let vx = [[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]];
-            // Calculate: identity-matrix + vx + vx^2 / c1
-            let mut vx2 = mat3x3_sqr(&vx);
-            max3x3_div_scalar(&mut vx2, c1);
-            max3x3_add(&mut vx2, &vx);
-            vx2[0][0] += 1.0;
-            vx2[1][1] += 1.0;
-            vx2[2][2] += 1.0;
-            vx2
-        }
-    }
-
-    fn mat3x3_sqr(mat: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
-        let mut msqr = [[0.0; 3]; 3];
-        for row in 0..3 {
-            for col in 0..3 {
-                for inner in 0..3 {
-                    msqr[row][col] += mat[row][inner] * mat[inner][col];
-                }
-            }
-        }
-        msqr
-    }
-
-    fn max3x3_add(a: &mut [[f32; 3]; 3], b: &[[f32; 3]; 3]) {
-        for row in 0..3 {
-            for col in 0..3 {
-                a[row][col] += b[row][col];
-            }
-        }
-    }
-
-    fn max3x3_div_scalar(mat: &mut [[f32; 3]; 3], div: f32) {
-        let factor = 1.0 / div;
-        for row in 0..3 {
-            for col in 0..3 {
-                mat[row][col] *= factor;
-            }
-        }
-    }
-
-    pub fn vec_mat_mult(vec: &mut [f32; 3], mat: &[[f32; 3]; 3]) {
-        let mut result = [0.0, 0.0, 0.0];
-        for col in 0..3 {
-            for inner in 0..3 {
-                result[col] += vec[inner] * mat[col][inner];
-            }
-        }
-        *vec = result;
-    }
 }

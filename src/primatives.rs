@@ -1,7 +1,10 @@
+//! Basic three dimensional shapes.
+
+#![allow(dead_code)]
+
 use crate::linalg;
 use std::f32::consts::PI;
 
-///
 pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices: u32) -> (Vec<[f32; 3]>, Vec<u32>) {
     let mut vertices = Vec::<[f32; 3]>::with_capacity(2 * (num_slices as usize + 1));
     let a_radius = 0.5 * a_diam;
@@ -43,13 +46,13 @@ pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices
         indices.push(2 * i + 2);
         indices.push(2 * i + 3);
     }
-    // Make disks over the ends of the cylinder to hide in interior.
+    // Make disks over the ends of the cylinder to hide the interior.
     for i in 1..num_slices - 1 {
-        // The base vertexes (A side) are on even indices.
+        // The base vertices (A side) are on even indices.
         indices.push(0);
         indices.push(2 * i);
         indices.push(2 * (i + 1));
-        // The tip vertexes (B side) are on odd indices.
+        // The tip vertices (B side) are on odd indices.
         indices.push(1);
         indices.push(1 + 2 * i);
         indices.push(1 + 2 * (i + 1));
