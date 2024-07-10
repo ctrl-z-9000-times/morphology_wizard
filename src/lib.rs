@@ -74,15 +74,19 @@ mod python {
             let mut offset = 0;
             for node in &nodes {
                 if node.is_root() {
-                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, 10.0, 12);
+                    let diameter: f32 = 10.0;
+                    let slices = 3.max((4.0 * diameter).round() as u32);
+                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, diameter, slices);
                     seg_i.iter_mut().for_each(|i| *i += offset);
                     indicies.append(&mut seg_i);
                     offset += seg_v.len() as u32;
                     vertices.append(&mut seg_v);
                 } else {
+                    let diam: f32 = 2.0;
+                    let slices = 3.max((4.0 * diam).round() as u32);
                     let parent_node = &nodes[node.parent_index as usize];
                     let (mut seg_v, mut seg_i) =
-                        crate::primatives::cylinder(&parent_node.coordinates, &node.coordinates, 2.0, 2.0, 5);
+                        crate::primatives::cylinder(&parent_node.coordinates, &node.coordinates, diam, diam, slices);
                     seg_i.iter_mut().for_each(|i| *i += offset);
                     indicies.append(&mut seg_i);
                     offset += seg_v.len() as u32;
@@ -348,7 +352,9 @@ impl<'a> WorkingData<'a> {
         // Use the maximum of the extension and branching parameters because
         // the parent could grow another segment in the time between when we
         // enqueue this potential segment and when we actually try to grow it.
-        let maximum_distance = if parent_node.num_children == 0 {
+        let maximum_distance = if parent_node.is_root() {
+            self.morphology.extension_distance
+        } else if parent_node.num_children == 0 {
             self.morphology.extension_distance.max(self.morphology.branch_distance)
         } else {
             self.morphology.branch_distance
@@ -492,7 +498,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
                 continue;
             }
             // Check maximum extension/branching distance.
-            let maximum_distance = if num_siblings == 0 {
+            let maximum_distance = if parent_node.is_root() || num_siblings == 0 {
                 morph.extension_distance
             } else {
                 morph.branch_distance
