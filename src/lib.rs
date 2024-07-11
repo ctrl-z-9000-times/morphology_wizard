@@ -4,16 +4,24 @@
 //! constraints of the ROOTS algorithm.
 //!
 //! **TREES:**  
-//!     Cuntz H, Forstner F, Borst A, Hausser M (2010) One Rule to Grow Them
-//!     All: A General Theory of Neuronal Branching and Its Practical
-//!     Application. PLoS Comput Biol 6(8): e1000877.
+//!     One Rule to Grow Them All: A General Theory of Neuronal Branching and
+//!     Its Practical Application.  
+//!     Cuntz H, Forstner F, Borst A, Hausser M (2010)  
+//!     PLoS Comput Biol 6(8): e1000877.  
 //!     <https://doi.org/10.1371/journal.pcbi.1000877>
 //!
 //! **ROOTS:**  
-//!     Bingham CS, Mergenthal A, Bouteiller J-MC, Song D, Lazzi G and Berger TW
-//!     (2020) ROOTS: An Algorithm to Generate Biologically Realistic Cortical
-//!     Axons and an Application to Electroceutical Modeling. Front. Comput.
-//!     Neurosci. 14:13. <https://doi.org/10.3389/fncom.2020.00013>
+//!     ROOTS: An Algorithm to Generate Biologically Realistic Cortical Axons
+//!     and an Application to Electroceutical Modeling.  
+//!     Bingham CS, Mergenthal A, Bouteiller J-MC, Song D, Lazzi G and Berger TW (2020)  
+//!     Front. Comput. Neurosci. 14:13.  
+//!     <https://doi.org/10.3389/fncom.2020.00013>
+//!
+//! **Dendrite Diameter:**  
+//!     Optimization principles of dendritic structure.  
+//!     Hermann Cuntz, Alexander Borst and Idan Segev (2007)  
+//!     Theoretical Biology and Medical Modelling 2007, 4:21  
+//!     <https://doi.org:10.1186/1742-4682-4-21>
 
 mod linalg;
 mod primatives;
@@ -29,16 +37,26 @@ mod python {
     /// constraints of the ROOTS algorithm.
     ///
     /// TREES:
-    ///     Cuntz H, Forstner F, Borst A, Hausser M (2010) One Rule to Grow Them
-    ///     All: A General Theory of Neuronal Branching and Its Practical
-    ///     Application. PLoS Comput Biol 6(8): e1000877.
+    ///     One Rule to Grow Them All: A General Theory of Neuronal Branching
+    ///     and Its Practical Application.  
+    ///     Cuntz H, Forstner F, Borst A, Hausser M (2010)  
+    ///     PLoS Comput Biol 6(8): e1000877.  
     ///     https://doi.org/10.1371/journal.pcbi.1000877
     ///
     /// ROOTS:
-    ///     Bingham CS, Mergenthal A, Bouteiller J-MC, Song D, Lazzi G and Berger TW
-    ///     (2020) ROOTS: An Algorithm to Generate Biologically Realistic Cortical
-    ///     Axons and an Application to Electroceutical Modeling. Front. Comput.
-    ///     Neurosci. 14:13. https://doi.org/10.3389/fncom.2020.00013
+    ///     ROOTS: An Algorithm to Generate Biologically Realistic Cortical
+    ///     Axons and an Application to Electroceutical Modeling.  
+    ///     Bingham CS, Mergenthal A, Bouteiller J-MC, Song D, Lazzi G and
+    ///     Berger TW (2020)  
+    ///     Front. Comput. Neurosci. 14:13.  
+    ///     https://doi.org/10.3389/fncom.2020.00013
+    ///
+    /// Dendrite Diameter:
+    ///     Optimization principles of dendritic structure.
+    ///     Hermann Cuntz, Alexander Borst and Idan Segev (2007)
+    ///     Theoretical Biology and Medical Modelling 2007, 4:21
+    ///     <https://doi.org:10.1186/1742-4682-4-21>
+
     #[pymodule]
     fn neuron_morphology(m: &Bound<PyModule>) -> PyResult<()> {
         m.add_class::<crate::Morphology>()?;
@@ -65,19 +83,29 @@ mod python {
             let mut offset = 0;
             for node in &nodes {
                 if node.is_root() {
-                    let diameter: f32 = 10.0;
-                    let slices = 3.max((4.0 * diameter).round() as u32);
-                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, diameter, slices);
+                    let slices = 3.max((4.0 * node.diameter).round() as u32);
+                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, node.diameter, slices);
                     seg_i.iter_mut().for_each(|i| *i += offset);
                     indicies.append(&mut seg_i);
                     offset += seg_v.len() as u32;
                     vertices.append(&mut seg_v);
                 } else {
-                    let diam: f32 = 2.0;
-                    let slices = 3.max((4.0 * diam).round() as u32);
                     let parent_node = &nodes[node.parent_index as usize];
-                    let (mut seg_v, mut seg_i) =
-                        crate::primatives::cylinder(&parent_node.coordinates, &node.coordinates, diam, diam, slices);
+                    let node_diameter = node.diameter;
+                    let parent_diameter = if parent_node.is_root() {
+                        node_diameter
+                    } else {
+                        parent_node.diameter
+                    };
+                    let max_diameter = parent_diameter.max(node.diameter);
+                    let slices = 3.max((4.0 * max_diameter).round() as u32);
+                    let (mut seg_v, mut seg_i) = crate::primatives::cylinder(
+                        &parent_node.coordinates,
+                        &node.coordinates,
+                        parent_diameter,
+                        node.diameter,
+                        slices,
+                    );
                     seg_i.iter_mut().for_each(|i| *i += offset);
                     indicies.append(&mut seg_i);
                     offset += seg_v.len() as u32;
@@ -134,20 +162,20 @@ pub struct Morphology {
     pub balancing_factor: f32,
 
     /// Maximum distance for primary extension segments.  
-    /// Units: Microns  
+    /// Units: microns  
     pub extension_distance: f32,
 
     /// Maximum angle between a primary extension and its parent segment.  
     /// This is sometimes also known as the meander.  
-    /// Units: Radians  
+    /// Units: radians  
     pub extension_angle: f32,
 
     /// Maximum distance for secondary branching segments.  
-    /// Units: Microns  
+    /// Units: microns  
     pub branch_distance: f32,
 
     /// Maximum angle between a secondary branch and its parent segment.  
-    /// Units: Radians  
+    /// Units: radians  
     pub branch_angle: f32,
 
     /// Prefer extending existing branches over making new branches.  
@@ -200,7 +228,7 @@ pub struct Instruction {
     pub morphology: Option<Morphology>,
 
     /// Three dimensional locations where this instruction will grow to.  
-    /// Units: Microns  
+    /// Units: microns  
     pub carrier_points: Vec<[f32; 3]>,
 
     /// Specifies the prior growth that this instruction will start from.
@@ -245,6 +273,7 @@ impl Instruction {
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Node {
     coordinates: [f32; 3],
+    diameter: f32,
     parent_index: u32,
     instruction_index: u32,
     num_children: u32,
@@ -258,6 +287,10 @@ impl Node {
     /// segment (for branch nodes).
     pub fn coordinates(&self) -> [f32; 3] {
         self.coordinates
+    }
+    /// Diameter of the neuron at this node's coordinates, in microns.
+    pub fn diameter(&self) -> f32 {
+        self.diameter
     }
     /// Is this node a neuron's soma?
     pub fn is_root(&self) -> bool {
@@ -296,6 +329,7 @@ impl Node {
     fn new_root(coordinates: [f32; 3], instruction_index: u32) -> Self {
         Self {
             coordinates,
+            diameter: 10.0,
             parent_index: u32::MAX,
             instruction_index,
             num_children: 0,
@@ -543,6 +577,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             let path_length = parent_node.path_length + segment_length;
             nodes.push(Node {
                 coordinates: *coordinates,
+                diameter: 0.0,
                 parent_index,
                 instruction_index: instr_index as u32,
                 num_children: 0,
@@ -556,5 +591,159 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
         // End of growth instruction.
         sections.push((section_start, nodes.len() as u32));
     }
+    let dendrite_diameter = DendriteDiameterQuadraticApprox::default();
+    dendrite_diameter.calculate_quadratic_diameters(&mut nodes, 0.4, 1.0);
     nodes
+}
+
+#[derive(Debug)]
+struct DendriteDiameterQuadraticApprox {
+    dendrite_lengths: Vec<f32>,
+    polynomials: Vec<[f32; 3]>,
+}
+
+impl Default for DendriteDiameterQuadraticApprox {
+    fn default() -> Self {
+        Self::from_str(
+            include_str!("quaddiameter_ldend.txt"),
+            include_str!("quaddiameter_P_normalized.txt"),
+        )
+    }
+}
+
+impl DendriteDiameterQuadraticApprox {
+    fn from_str(dendrite_length_data: &str, polynomial_data: &str) -> Self {
+        let dendrite_lengths: Vec<f32> = dendrite_length_data
+            .split_ascii_whitespace()
+            .map(|x| x.parse().unwrap())
+            .collect();
+        let polynomials: Vec<[f32; 3]> = polynomial_data
+            .lines()
+            .map(|line| {
+                let mut poly_terms_iter = line.split_ascii_whitespace().map(|x| x.parse().unwrap());
+                let polynomial = [
+                    poly_terms_iter.next().unwrap(),
+                    poly_terms_iter.next().unwrap(),
+                    poly_terms_iter.next().unwrap(),
+                ];
+                assert!(poly_terms_iter.next().is_none());
+                polynomial
+            })
+            .collect();
+        assert!(!dendrite_lengths.is_empty());
+        assert_eq!(dendrite_lengths.len(), polynomials.len());
+        assert!(is_sorted(&dendrite_lengths));
+        assert!(is_unique(&dendrite_lengths));
+        Self {
+            polynomials,
+            dendrite_lengths,
+        }
+    }
+
+    fn calculate_quadratic_diameters(&self, nodes: &mut [Node], scale: f32, offset: f32) {
+        //
+
+        #[derive(Debug, Default, Copy, Clone)]
+        struct PathAccumulator {
+            num_paths: u32,
+            sum_diams: f32,
+        }
+
+        let mut accum = vec![PathAccumulator::default(); nodes.len()];
+
+        // Iterate through all leaf nodes / dendrite terminals.
+        for terminal_index in 0..nodes.len() as u32 {
+            let terminal_node = &nodes[terminal_index as usize];
+            if terminal_node.num_children != 0 {
+                continue;
+            }
+            // Interpolate between the closest polynomial approximations for this length of dendrite.
+            let (interp1_index, interp_data) = interp_points(&self.dendrite_lengths, terminal_node.path_length);
+            let polynomial = match interp_data {
+                None => self.polynomials[interp1_index].map(|term| term * scale),
+                Some((interp1_weight, interp2_index, interp2_weight)) => add_arrays(
+                    self.polynomials[interp1_index].map(|term| term * interp1_weight),
+                    self.polynomials[interp2_index].map(|term| term * interp2_weight),
+                )
+                .map(|term| term * scale),
+            };
+            // Calculate the optimal dendrite diameter for all nodes along the
+            // path from this terminal to the soma.
+            let mut cursor_index = terminal_index;
+            let mut cursor_node = &nodes[cursor_index as usize];
+            let normalization_factor = 1.0 / terminal_node.path_length;
+            loop {
+                let distance = cursor_node.path_length * normalization_factor;
+                let diameter = polynomial[0] * distance.powi(2) + polynomial[1] * distance + polynomial[2];
+
+                accum[cursor_index as usize].num_paths += 1;
+                accum[cursor_index as usize].sum_diams += diameter;
+                if cursor_node.is_segment() {
+                    cursor_index = cursor_node.parent_index;
+                    cursor_node = &nodes[cursor_index as usize];
+                } else {
+                    break;
+                }
+            }
+        }
+        // Average the diameters for all of the nodes.
+        for (node, paths) in nodes.iter_mut().zip(&accum) {
+            if node.is_segment() {
+                node.diameter = paths.sum_diams / paths.num_paths as f32 + offset;
+            }
+        }
+    }
+}
+
+fn is_sorted(data: &[f32]) -> bool {
+    for pair in data.windows(2) {
+        if pair[0] > pair[1] {
+            return false;
+        }
+    }
+    true
+}
+
+/// Are all of the elements unique?  
+/// Argument data must be sorted.  
+fn is_unique(data: &[f32]) -> bool {
+    for pair in data.windows(2) {
+        if pair[0] == pair[1] {
+            return false;
+        }
+    }
+    true
+}
+
+/// Find the index of the given value in the given data set. If there is no
+/// exact match then this also returns the adjacent point and the interoplation
+/// weights.
+///
+/// Argument data must be sorted and dedup'ed.  
+fn interp_points(data: &[f32], query_value: f32) -> (usize, Option<(f32, usize, f32)>) {
+    match data.binary_search_by(|probe| probe.total_cmp(&query_value)) {
+        Ok(upper_index) => (upper_index, None),
+        Err(upper_index) => {
+            if upper_index == 0 {
+                (upper_index, None)
+            } else if upper_index == data.len() {
+                (upper_index - 1, None)
+            } else {
+                let lower_index = upper_index - 1;
+                let upper_value = data[upper_index];
+                let lower_value = data[lower_index];
+                let total_dist = upper_value - lower_value;
+                let upper_dist = (upper_value - query_value) / total_dist;
+                let lower_dist = (query_value - lower_value) / total_dist;
+                (lower_index, Some((lower_dist, upper_index, upper_dist)))
+            }
+        }
+    }
+}
+
+fn add_arrays<const N: usize>(mut a: [f32; N], b: [f32; N]) -> [f32; N] {
+    for i in 0..N {
+        a[i] += b[i]
+    }
+    a
 }
