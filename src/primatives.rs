@@ -49,9 +49,9 @@ pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices
     // Make disks over the ends of the cylinder to hide the interior.
     for i in 1..num_slices - 1 {
         // The base vertices (A side) are on even indices.
-        indices.push(0);
-        indices.push(2 * i);
         indices.push(2 * (i + 1));
+        indices.push(2 * i);
+        indices.push(0);
         // The tip vertices (B side) are on odd indices.
         indices.push(1);
         indices.push(1 + 2 * i);
