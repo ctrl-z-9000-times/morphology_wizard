@@ -23,8 +23,11 @@
 //!     Theoretical Biology and Medical Modelling 2007, 4:21  
 //!     <https://doi.org:10.1186/1742-4682-4-21>
 
+mod formats;
 mod linalg;
 mod primatives;
+
+pub use formats::*;
 
 #[cfg(feature = "pyo3")]
 mod python {
@@ -69,6 +72,24 @@ mod python {
         #[pyfn(m)]
         fn create(instructions: Vec<crate::Instruction>) -> Vec<crate::Node> {
             crate::create(&instructions)
+        }
+
+        /// Execute a list of neuron growth instructions and format the results
+        /// in the SWC neuron morphology format.
+        ///
+        /// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+        #[pyfn(m)]
+        fn create_swc(instructions: Vec<crate::Instruction>) -> String {
+            crate::formats::create_swc(&instructions)
+        }
+
+        /// Execute a list of neuron growth instructions and format the results
+        /// in the NeuroML v2 neuron description format.
+        ///
+        /// https://docs.neuroml.org
+        #[pyfn(m)]
+        fn create_nml(instructions: Vec<crate::Instruction>) -> String {
+            crate::formats::create_nml(&instructions)
         }
 
         #[pyfn(m)]
@@ -210,6 +231,12 @@ impl Morphology {
     fn __str__(&self) -> String {
         format!("{self:#?}")
     }
+    pub fn is_dendrite(&self) -> bool {
+        !self.extend_before_branch
+    }
+    pub fn is_axon(&self) -> bool {
+        self.extend_before_branch
+    }
 }
 
 /// Container for a single step of a neuron growth program.
@@ -264,6 +291,23 @@ impl Instruction {
             } else {
                 assert!(instr.roots.is_empty(), "Missing morphology parameters");
             }
+        }
+    }
+    pub fn is_soma(&self) -> bool {
+        self.morphology.is_none()
+    }
+    pub fn is_dendrite(&self) -> bool {
+        if let Some(morphology) = self.morphology {
+            morphology.is_dendrite()
+        } else {
+            false
+        }
+    }
+    pub fn is_axon(&self) -> bool {
+        if let Some(morphology) = self.morphology {
+            morphology.is_axon()
+        } else {
+            false
         }
     }
 }
