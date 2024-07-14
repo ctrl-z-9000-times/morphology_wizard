@@ -106,7 +106,8 @@ mod python {
             for node in &nodes {
                 if node.is_root() {
                     let slices = 3.max((4.0 * node.diameter).round() as u32);
-                    let (mut seg_v, mut seg_i) = crate::primatives::sphere(&node.coordinates, node.diameter, slices);
+                    let (mut seg_v, mut seg_i) =
+                        crate::primatives::sphere(&coords_f64_to_f32(node.coordinates), node.diameter as f32, slices);
                     seg_i.iter_mut().for_each(|i| *i += offset);
                     indicies.append(&mut seg_i);
                     offset += seg_v.len() as u32;
@@ -122,10 +123,10 @@ mod python {
                     let max_diameter = parent_diameter.max(node.diameter);
                     let slices = 3.max((4.0 * max_diameter).round() as u32);
                     let (mut seg_v, mut seg_i) = crate::primatives::cylinder(
-                        &parent_node.coordinates,
-                        &node.coordinates,
-                        parent_diameter,
-                        node.diameter,
+                        &coords_f64_to_f32(parent_node.coordinates),
+                        &coords_f64_to_f32(node.coordinates),
+                        parent_diameter as f32,
+                        node.diameter as f32,
                         slices,
                     );
                     seg_i.iter_mut().for_each(|i| *i += offset);
@@ -141,6 +142,10 @@ mod python {
         }
 
         Ok(())
+    }
+
+    fn coords_f64_to_f32(data: [f64; 3]) -> [f32; 3] {
+        [data[0] as f32, data[1] as f32, data[2] as f32]
     }
 
     /// Transmute the vector without needlessly copying the data.
@@ -171,7 +176,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 
 /// Container for the morphological parameters of a neuron's dendrite or axon.
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
@@ -181,24 +186,24 @@ pub struct Morphology {
     /// amount of neurite material and minimizing conduction delays.  
     /// Lower factors favor using less neurite material, higher factors favor
     /// more direct routes from each node to the soma.
-    pub balancing_factor: f32,
+    pub balancing_factor: f64,
 
     /// Maximum distance for primary extension segments.  
     /// Units: microns  
-    pub extension_distance: f32,
+    pub extension_distance: f64,
 
     /// Maximum angle between a primary extension and its parent segment.  
     /// This is sometimes also known as the meander.  
     /// Units: radians  
-    pub extension_angle: f32,
+    pub extension_angle: f64,
 
     /// Maximum distance for secondary branching segments.  
     /// Units: microns  
-    pub branch_distance: f32,
+    pub branch_distance: f64,
 
     /// Maximum angle between a secondary branch and its parent segment.  
     /// Units: radians  
-    pub branch_angle: f32,
+    pub branch_angle: f64,
 
     /// Prefer extending existing branches over making new branches.  
     pub extend_before_branch: bool,
@@ -209,12 +214,12 @@ pub struct Morphology {
 
     /// Minimum diameter for this type of neurite.  
     /// Units: microns  
-    pub minimum_diameter: f32,
+    pub minimum_diameter: f64,
 
     /// Scales the size of the dendrite tapering effect. A value of zero will
     /// yield a constant diameter dendrite with no tapering. Larger values will
     /// yeild larger dendrites. Must be greater than or equal to zero.
-    pub diameter_taper: f32,
+    pub diameter_taper: f64,
 }
 
 impl Default for Morphology {
@@ -274,11 +279,11 @@ pub struct Instruction {
     /// Units: microns  
     ///
     /// This parameter is required for somas and invalid for dendrites and axons.
-    pub soma_diameter: Option<f32>,
+    pub soma_diameter: Option<f64>,
 
     /// Three dimensional locations where this instruction will grow to.  
     /// Units: microns  
-    pub carrier_points: Vec<[f32; 3]>,
+    pub carrier_points: Vec<[f64; 3]>,
 
     /// Specifies the prior growth that this instruction will start from.
     /// Roots is a list of indices into the instructions list.
@@ -345,12 +350,12 @@ impl Instruction {
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct Node {
-    coordinates: [f32; 3],
-    diameter: f32,
+    coordinates: [f64; 3],
+    diameter: f64,
     parent_index: u32,
     instruction_index: u32,
     num_children: u32,
-    path_length: f32,
+    path_length: f64,
 }
 
 #[cfg_attr(feature = "pyo3", pymethods)]
@@ -358,11 +363,11 @@ impl Node {
     /// Three dimensional coordinates of this node.  
     /// Located at the center of the soma (for root nodes) or at the tip of the
     /// segment (for branch nodes).
-    pub fn coordinates(&self) -> [f32; 3] {
+    pub fn coordinates(&self) -> [f64; 3] {
         self.coordinates
     }
     /// Diameter of the neuron at this node's coordinates, in microns.
-    pub fn diameter(&self) -> f32 {
+    pub fn diameter(&self) -> f64 {
         self.diameter
     }
     /// Is this node the root of a neuron's tree structure?
@@ -395,7 +400,7 @@ impl Node {
         self.num_children
     }
     /// Distance from this node to the soma, by traveling through the neuron.
-    pub fn path_length(&self) -> f32 {
+    pub fn path_length(&self) -> f64 {
         self.path_length
     }
     fn __str__(&self) -> String {
@@ -403,7 +408,7 @@ impl Node {
     }
 }
 impl Node {
-    fn new_root(coordinates: [f32; 3], diameter: f32, instruction_index: u32) -> Self {
+    fn new_root(coordinates: [f64; 3], diameter: f64, instruction_index: u32) -> Self {
         Self {
             coordinates,
             diameter,
@@ -414,11 +419,11 @@ impl Node {
         }
     }
     fn new_segment(
-        coordinates: [f32; 3],
-        diameter: f32,
+        coordinates: [f64; 3],
+        diameter: f64,
         parent_index: u32,
         instruction_index: u32,
-        path_length: f32,
+        path_length: f64,
     ) -> Self {
         Self {
             coordinates,
@@ -435,13 +440,13 @@ impl Node {
 struct WorkingData<'a> {
     morphology: &'a Morphology,
 
-    carrier_points: &'a [[f32; 3]],
+    carrier_points: &'a [[f64; 3]],
 
     /// Boolean flags to track which carrier points have already been used.
     occupied: BitBox,
 
     /// For constraining the algorithm to search within the maximum extension/branching distance constraints.
-    kd_tree: ImmutableKdTree<f32, u32, 3, 32>,
+    kd_tree: ImmutableKdTree<f64, u32, 3, 32>,
 
     /// Priority queue for deciding which potential segments to grow first.
     potential: BinaryHeap<PotentialSegment>,
@@ -525,7 +530,7 @@ impl<'a> WorkingData<'a> {
         }
     }
 
-    fn priority(&self, parent_node: &Node, segment_length: f32) -> f32 {
+    fn priority(&self, parent_node: &Node, segment_length: f64) -> f64 {
         let path_length = segment_length + parent_node.path_length;
         segment_length + self.morphology.balancing_factor * path_length
     }
@@ -538,7 +543,7 @@ struct PotentialSegment {
     branch_num: u32,
 
     /// Priority for growing this segment. Lower is better.
-    priority: f32,
+    priority: f64,
 
     /// Index into the user's carrier_points list.
     carrier_index: u32,
@@ -644,7 +649,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             } else {
                 morph.branch_angle
             };
-            if maximum_angle < PI - f32::EPSILON && parent_node.is_segment() {
+            if maximum_angle < PI - f64::EPSILON && parent_node.is_segment() {
                 let grandparent_coords = &nodes[parent_node.parent_index as usize].coordinates;
                 let parent_vector = linalg::sub(grandparent_coords, parent_coords);
                 let segment_vector = linalg::sub(parent_coords, coordinates);
@@ -684,14 +689,14 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
         sections.push((section_start, nodes.len() as u32));
     }
     let dendrite_diameter = DendriteDiameterQuadraticApprox::default();
-    dendrite_diameter.calculate_quadratic_diameters(&instructions, &mut nodes);
+    dendrite_diameter.calculate_quadratic_diameters(instructions, &mut nodes);
     nodes
 }
 
 #[derive(Debug)]
 struct DendriteDiameterQuadraticApprox {
-    dendrite_lengths: Vec<f32>,
-    polynomials: Vec<[f32; 3]>,
+    dendrite_lengths: Vec<f64>,
+    polynomials: Vec<[f64; 3]>,
 }
 
 impl Default for DendriteDiameterQuadraticApprox {
@@ -705,11 +710,11 @@ impl Default for DendriteDiameterQuadraticApprox {
 
 impl DendriteDiameterQuadraticApprox {
     fn from_str(dendrite_length_data: &str, polynomial_data: &str) -> Self {
-        let dendrite_lengths: Vec<f32> = dendrite_length_data
+        let dendrite_lengths: Vec<f64> = dendrite_length_data
             .split_ascii_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
-        let polynomials: Vec<[f32; 3]> = polynomial_data
+        let polynomials: Vec<[f64; 3]> = polynomial_data
             .lines()
             .map(|line| {
                 let mut poly_terms_iter = line.split_ascii_whitespace().map(|x| x.parse().unwrap());
@@ -738,7 +743,7 @@ impl DendriteDiameterQuadraticApprox {
         #[derive(Debug, Default, Copy, Clone)]
         struct PathAccumulator {
             num_paths: u32,
-            sum_diams: f32,
+            sum_diams: f64,
         }
         let mut accum = vec![PathAccumulator::default(); nodes.len()];
         // Iterate through all leaf nodes / dendrite terminals.
@@ -785,7 +790,7 @@ impl DendriteDiameterQuadraticApprox {
         for (node, paths) in nodes.iter_mut().zip(&accum) {
             let instr = &instructions[node.instruction_index as usize];
             if instr.is_dendrite() {
-                let mean_diameter = paths.sum_diams / paths.num_paths as f32;
+                let mean_diameter = paths.sum_diams / paths.num_paths as f64;
                 // Enforce the minimum_diameter constraint.
                 let Some(morph) = &instr.morphology else { continue };
                 node.diameter = morph.minimum_diameter.max(mean_diameter);
@@ -794,7 +799,7 @@ impl DendriteDiameterQuadraticApprox {
     }
 }
 
-fn is_sorted(data: &[f32]) -> bool {
+fn is_sorted(data: &[f64]) -> bool {
     for pair in data.windows(2) {
         if pair[0] > pair[1] {
             return false;
@@ -805,7 +810,7 @@ fn is_sorted(data: &[f32]) -> bool {
 
 /// Are all of the elements unique?  
 /// Argument data must be sorted.  
-fn is_unique(data: &[f32]) -> bool {
+fn is_unique(data: &[f64]) -> bool {
     for pair in data.windows(2) {
         if pair[0] == pair[1] {
             return false;
@@ -819,7 +824,7 @@ fn is_unique(data: &[f32]) -> bool {
 /// weights.
 ///
 /// Argument data must be sorted and dedup'ed.  
-fn interp_points(data: &[f32], query_value: f32) -> (usize, Option<(f32, usize, f32)>) {
+fn interp_points(data: &[f64], query_value: f64) -> (usize, Option<(f64, usize, f64)>) {
     match data.binary_search_by(|probe| probe.total_cmp(&query_value)) {
         Ok(upper_index) => (upper_index, None),
         Err(upper_index) => {
@@ -840,7 +845,7 @@ fn interp_points(data: &[f32], query_value: f32) -> (usize, Option<(f32, usize, 
     }
 }
 
-fn add_arrays<const N: usize>(mut a: [f32; N], b: [f32; N]) -> [f32; N] {
+fn add_arrays<const N: usize>(mut a: [f64; N], b: [f64; N]) -> [f64; N] {
     for i in 0..N {
         a[i] += b[i]
     }

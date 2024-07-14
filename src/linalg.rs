@@ -2,28 +2,30 @@
 
 #![allow(dead_code)]
 
-pub fn distance(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+use num_traits::float::Float;
+
+pub fn distance<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
     mag(&sub(a, b))
 }
 
-pub fn angle(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+pub fn angle<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
     (dot(a, b) / mag(a) / mag(b)).acos()
 }
 
-pub fn dot(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+pub fn dot<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// Vector length.
-pub fn mag(x: &[f32; 3]) -> f32 {
+pub fn mag<F: Float>(x: &[F; 3]) -> F {
     (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)).sqrt()
 }
 
-pub fn sub(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
+pub fn sub<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
     [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
 }
 
-pub fn cross(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
+pub fn cross<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
