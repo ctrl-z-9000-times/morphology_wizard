@@ -205,6 +205,15 @@ pub struct Morphology {
     /// Maximum number of secondary branches that any segment can have.  
     /// Root nodes can have an unlimited number of children.  
     pub maximum_branches: u32,
+
+    /// Minimum diameter for this type of neurite.  
+    /// Units: microns  
+    pub minimum_diameter: f32,
+
+    /// Scales the size of the dendrite tapering effect. A value of zero will
+    /// yield a constant diameter dendrite with no tapering. Larger values will
+    /// yeild larger dendrites. Must be greater than or equal to zero.
+    pub diameter_taper: f32,
 }
 
 impl Default for Morphology {
@@ -217,6 +226,8 @@ impl Default for Morphology {
             branch_distance: 100.0,
             extend_before_branch: false,
             maximum_branches: 1,
+            minimum_diameter: 1.0,
+            diameter_taper: 0.2,
         }
     }
 }
@@ -254,6 +265,12 @@ pub struct Instruction {
     ///     Accessing this attribute creates a new copy of it.  
     pub morphology: Option<Morphology>,
 
+    /// Specifies the diameter of the root node in a neuron's tree structure.  
+    /// Units: microns  
+    ///
+    /// This parameter is required for somas and invalid for dendrites and axons.
+    pub soma_diameter: Option<f32>,
+
     /// Three dimensional locations where this instruction will grow to.  
     /// Units: microns  
     pub carrier_points: Vec<[f32; 3]>,
@@ -287,9 +304,16 @@ impl Instruction {
                 assert!(morphology.branch_distance >= 0.0);
                 assert!((0.0..=PI).contains(&morphology.extension_angle));
                 assert!((0.0..=PI).contains(&morphology.branch_angle));
+                assert!(morphology.minimum_diameter > 0.0);
+                assert!(morphology.diameter_taper >= 0.0);
                 assert!(instr.roots.iter().all(|&root_instr| root_instr < instr_index as u32));
+                assert!(instr.soma_diameter.is_none());
             } else {
                 assert!(instr.roots.is_empty(), "Missing morphology parameters");
+                let Some(soma_diameter) = instr.soma_diameter else {
+                    panic!("Missing soma diameter");
+                };
+                assert!(soma_diameter > 0.0);
             }
         }
     }
@@ -336,13 +360,17 @@ impl Node {
     pub fn diameter(&self) -> f32 {
         self.diameter
     }
-    /// Is this node a neuron's soma?
+    /// Is this node the root of a neuron's tree structure?
     pub fn is_root(&self) -> bool {
         self.parent_index == u32::MAX
     }
     /// Is this node a section of a dendrite or axon?
     pub fn is_segment(&self) -> bool {
         self.parent_index != u32::MAX
+    }
+    /// Is this node a leaf node in a neuron's tree structure?  
+    pub fn is_terminal(&self) -> bool {
+        self.num_children == 0
     }
     /// Index into the Nodes list of this segment's parent node.  
     /// Returns None if this is a root node.  
@@ -370,14 +398,30 @@ impl Node {
     }
 }
 impl Node {
-    fn new_root(coordinates: [f32; 3], instruction_index: u32) -> Self {
+    fn new_root(coordinates: [f32; 3], diameter: f32, instruction_index: u32) -> Self {
         Self {
             coordinates,
-            diameter: 10.0,
+            diameter,
             parent_index: u32::MAX,
             instruction_index,
             num_children: 0,
             path_length: 0.0,
+        }
+    }
+    fn new_segment(
+        coordinates: [f32; 3],
+        diameter: f32,
+        parent_index: u32,
+        instruction_index: u32,
+        path_length: f32,
+    ) -> Self {
+        Self {
+            coordinates,
+            diameter,
+            parent_index,
+            instruction_index,
+            num_children: 0,
+            path_length,
         }
     }
 }
@@ -538,10 +582,11 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     // Process each instruction.
     for (instr_index, instr) in instructions.iter().enumerate() {
         let section_start = nodes.len() as u32;
-        // Instruction which are missing a morphology create new neurons / tree roots.
+        // Instructions which are missing a morphology create new neurons / tree roots.
         let Some(ref morph) = instr.morphology else {
+            let soma_diameter = instr.soma_diameter.expect("Internal Error");
             for coordinates in instr.carrier_points.iter() {
-                nodes.push(Node::new_root(*coordinates, instr_index as u32));
+                nodes.push(Node::new_root(*coordinates, soma_diameter, instr_index as u32));
             }
             sections.push((section_start, nodes.len() as u32));
             continue;
@@ -618,15 +663,13 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
             }
             // Create the new segment.
             let node_index = nodes.len() as u32;
-            let path_length = parent_node.path_length + segment_length;
-            nodes.push(Node {
-                coordinates: *coordinates,
-                diameter: 0.0,
+            nodes.push(Node::new_segment(
+                *coordinates,
+                morph.minimum_diameter,
                 parent_index,
-                instruction_index: instr_index as u32,
-                num_children: 0,
-                path_length,
-            });
+                instr_index as u32,
+                parent_node.path_length + segment_length,
+            ));
             data.occupied.set(carrier_index as usize, true);
             nodes[parent_index as usize].num_children += 1;
             // Now consider growing more segments off of this new node.
@@ -636,7 +679,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
         sections.push((section_start, nodes.len() as u32));
     }
     let dendrite_diameter = DendriteDiameterQuadraticApprox::default();
-    dendrite_diameter.calculate_quadratic_diameters(&mut nodes, 0.4, 1.0);
+    dendrite_diameter.calculate_quadratic_diameters(&instructions, &mut nodes);
     nodes
 }
 
@@ -684,33 +727,36 @@ impl DendriteDiameterQuadraticApprox {
         }
     }
 
-    fn calculate_quadratic_diameters(&self, nodes: &mut [Node], scale: f32, offset: f32) {
-        //
-
+    fn calculate_quadratic_diameters(&self, instructions: &[Instruction], nodes: &mut [Node]) {
+        // Track all of the paths from the tree's root to the terminals nodes.
+        // Keep the path info alongside / parallel to the nodes.
         #[derive(Debug, Default, Copy, Clone)]
         struct PathAccumulator {
             num_paths: u32,
             sum_diams: f32,
         }
-
         let mut accum = vec![PathAccumulator::default(); nodes.len()];
-
         // Iterate through all leaf nodes / dendrite terminals.
         for terminal_index in 0..nodes.len() as u32 {
             let terminal_node = &nodes[terminal_index as usize];
-            if terminal_node.num_children != 0 {
+            if !terminal_node.is_terminal() {
                 continue;
             }
+            // Get the diameter parameters.
+            let instr = &instructions[terminal_node.instruction_index as usize];
+            let Some(morph) = &instr.morphology else { continue };
+            let scale = morph.diameter_taper;
+            let offset = morph.minimum_diameter;
             // Interpolate between the closest polynomial approximations for this length of dendrite.
             let (interp1_index, interp_data) = interp_points(&self.dendrite_lengths, terminal_node.path_length);
             let polynomial = match interp_data {
-                None => self.polynomials[interp1_index].map(|term| term * scale),
+                None => self.polynomials[interp1_index],
                 Some((interp1_weight, interp2_index, interp2_weight)) => add_arrays(
                     self.polynomials[interp1_index].map(|term| term * interp1_weight),
                     self.polynomials[interp2_index].map(|term| term * interp2_weight),
-                )
-                .map(|term| term * scale),
+                ),
             };
+            let polynomial = polynomial.map(|term| term * scale + offset);
             // Calculate the optimal dendrite diameter for all nodes along the
             // path from this terminal to the soma.
             let mut cursor_index = terminal_index;
@@ -730,10 +776,14 @@ impl DendriteDiameterQuadraticApprox {
                 }
             }
         }
-        // Average the diameters for all of the nodes.
+        // Average the diameters of all paths through each node.
         for (node, paths) in nodes.iter_mut().zip(&accum) {
-            if node.is_segment() {
-                node.diameter = paths.sum_diams / paths.num_paths as f32 + offset;
+            let instr = &instructions[node.instruction_index as usize];
+            if instr.is_dendrite() {
+                let mean_diameter = paths.sum_diams / paths.num_paths as f32;
+                // Enforce the minimum_diameter constraint.
+                let Some(morph) = &instr.morphology else { continue };
+                node.diameter = morph.minimum_diameter.max(mean_diameter);
             }
         }
     }
