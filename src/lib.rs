@@ -61,6 +61,7 @@ mod python {
     ///     <https://doi.org:10.1186/1742-4682-4-21>
 
     #[pymodule]
+    #[pyo3(name = "lib")]
     fn neuron_morphology(m: &Bound<PyModule>) -> PyResult<()> {
         m.add_class::<crate::Morphology>()?;
         m.add_class::<crate::Instruction>()?;
@@ -242,6 +243,10 @@ impl Morphology {
     fn __str__(&self) -> String {
         format!("{self:#?}")
     }
+}
+
+#[cfg_attr(feature = "pyo3", pymethods)]
+impl Morphology {
     pub fn is_dendrite(&self) -> bool {
         !self.extend_before_branch
     }

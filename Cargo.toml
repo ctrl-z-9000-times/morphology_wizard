@@ -1,5 +1,5 @@
 [package]
-    name = "neuron_morphology"
+    name = "morphology_wizard"
     edition = "2021"
     authors = ["David McDougall <dam1784@rit.edu>"]
     license = "Proprietary"
@@ -12,5 +12,5 @@
     bitvec = "1"
     kiddo = "4"
     numpy = "0.21"
-    pyo3 = {version = "0.21", features = ["extension-module", "serde"], optional = true}
+    pyo3 = {version = "0.21", features = ["extension-module", "multiple-pymethods", "serde"], optional = true}
     serde = {version = "1", features = ["derive"]}
