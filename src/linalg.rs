@@ -25,6 +25,14 @@ pub fn sub<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
     [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
 }
 
+pub fn add<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+pub fn scale<F: Float>(x: &[F; 3], f: F) -> [F; 3] {
+    [f * x[0], f * x[1], f * x[2]]
+}
+
 pub fn cross<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
