@@ -793,20 +793,20 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     assert!(instructions.len() < u32::MAX as usize);
     assert!(num_nodes < u32::MAX as usize);
     // The sections list keeps track of which nodes were created by each instruction.
-    let mut sections = Vec::<(u32, u32)>::with_capacity(instructions.len());
+    let mut sections = Vec::<u32>::with_capacity(instructions.len() + 1);
+    sections.push(0);
 
     // Process each instruction.
     for (instr_index, instr) in instructions.iter().enumerate() {
-        let section_start = nodes.len() as u32;
         execute_instruction(instr_index, instr, &mut nodes, &sections);
-        sections.push((section_start, nodes.len() as u32));
+        sections.push(nodes.len() as u32);
     }
 
     dendrite_diameter::QuadraticApprox::default().apply(instructions, &mut nodes);
     nodes
 }
 
-fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<Node>, sections: &[(u32, u32)]) {
+fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<Node>, sections: &[u32]) {
     if instr.carrier_points.is_empty() {
         return;
     }
@@ -822,9 +822,10 @@ fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<
     let mut data = WorkingData::new(instr_index as u32, instr);
 
     // Start with potential segments from all of the roots to all of the carrier points.
-    for root_instr in instr.roots.iter() {
-        let (section_start, section_end) = sections[*root_instr as usize];
-        for root_index in section_start..section_end {
+    for root_instr in instr.roots.iter().copied() {
+        let section_start = sections[root_instr as usize];
+        let section_end__ = sections[root_instr as usize + 1];
+        for root_index in section_start..section_end__ {
             let root_node = &nodes[root_index as usize];
             if root_node.carrier_point {
                 data.consider_all_potential_segments(root_index, root_node);
@@ -874,16 +875,17 @@ fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<
         // morphological constraints and retry the instruction.
         if morph.reach_all_carrier_points && !data.occupied.all() {
             let mut potential = vec![];
-            for root_instr in instr.roots.iter() {
-                let (section_start, section_end) = sections[*root_instr as usize];
-                for root_index in section_start..section_end {
+            for root_instr in instr.roots.iter().copied() {
+                let section_start = sections[root_instr as usize];
+                let section_end__ = sections[root_instr as usize + 1];
+                for root_index in section_start..section_end__ {
                     let root_node = &nodes[root_index as usize];
                     if root_node.carrier_point {
                         data.consider_all_potential_segments_relaxed(root_index, root_node, &mut potential);
                     }
                 }
             }
-            if let Some(&(_, this_section_start)) = sections.last() {
+            if let Some(&this_section_start) = sections.last() {
                 for root_index in this_section_start..nodes.len() as u32 {
                     let root_node = &nodes[root_index as usize];
                     if root_node.carrier_point {
