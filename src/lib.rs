@@ -205,7 +205,6 @@ mod python {
                     if parent_node.is_root() {
                         continue;
                     }
-                    let node_diameter = node.diameter;
                     let max_diameter = parent_node.diameter.max(node.diameter);
                     let slices = 3.max((4.0 * max_diameter).round() as u32);
                     let (mut seg_v, mut seg_i) = crate::primatives::cylinder(
@@ -329,7 +328,7 @@ impl Default for Morphology {
             minimum_diameter: 1.0,
             dendrite_taper: 0.2,
             maximum_segment_length: f64::INFINITY,
-            reach_all_carrier_points: false,
+            reach_all_carrier_points: true,
         }
     }
 }
@@ -540,6 +539,8 @@ impl Node {
 
 /// Container for all of the data structures needed to execute a growth instruction.
 struct WorkingData<'a> {
+    instruction_index: u32,
+
     morphology: &'a Morphology,
 
     carrier_points: &'a [[f64; 3]],
@@ -555,8 +556,9 @@ struct WorkingData<'a> {
 }
 
 impl<'a> WorkingData<'a> {
-    fn new(instruction: &'a Instruction) -> Self {
+    fn new(instruction_index: u32, instruction: &'a Instruction) -> Self {
         Self {
+            instruction_index,
             morphology: instruction.morphology.as_ref().unwrap(),
             carrier_points: &instruction.carrier_points,
             occupied: bitbox![0; instruction.carrier_points.len()],
@@ -630,9 +632,113 @@ impl<'a> WorkingData<'a> {
         }
     }
 
+    /// Returns all potential segments starting from the given node, without
+    /// considering any morphological constraints. This is used to restart the
+    /// algorithm if it gets stuck before consuming all carrier points.
+    fn consider_all_potential_segments_relaxed(
+        &self,
+        parent_index: u32,
+        parent_node: &Node,
+        potential_segments: &mut Vec<PotentialSegment>,
+    ) {
+        for carrier_index in self.occupied.iter_zeros() {
+            let carrier_point = &self.carrier_points[carrier_index];
+            let segment_length = linalg::distance(&parent_node.coordinates, carrier_point);
+            let priority = self.priority(parent_node, segment_length);
+            potential_segments.push(PotentialSegment {
+                branch_num: 0,
+                priority,
+                carrier_index: carrier_index as u32,
+                parent_index,
+            });
+        }
+    }
+
     fn priority(&self, parent_node: &Node, segment_length: f64) -> f64 {
         let path_length = segment_length + parent_node.path_length;
         segment_length + self.morphology.balancing_factor * path_length
+    }
+
+    fn grow_segment(&mut self, nodes: &mut Vec<Node>, parent_index: u32, carrier_index: u32) {
+        //
+        let carrier_point = &self.carrier_points[carrier_index as usize];
+        self.occupied.set(carrier_index as usize, true);
+        //
+        self.grow_segment_nodes(nodes, parent_index, carrier_point);
+
+        // Now consider growing more segments off of this new node.
+        let node_index = (nodes.len() - 1) as u32;
+        self.consider_all_potential_segments(node_index, &nodes[node_index as usize]);
+    }
+
+    fn grow_segment_nodes(&self, nodes: &mut Vec<Node>, mut parent_index: u32, carrier_point: &[f64; 3]) {
+        let mut parent_node = &mut nodes[parent_index as usize];
+        parent_node.num_children += 1;
+        // Insert an extra node on the surface of the soma.
+        if parent_node.is_root() {
+            let parent_coords = &parent_node.coordinates;
+            let parent_radius = 0.5 * parent_node.diameter;
+            let path_length = linalg::distance(parent_coords, carrier_point);
+            // Check if the carrier point is inside of the soma's radius.
+            if parent_radius >= path_length {
+                nodes.push(Node::new_segment(
+                    *carrier_point,
+                    self.morphology.minimum_diameter,
+                    parent_index,
+                    self.instruction_index,
+                    path_length,
+                    true,
+                ));
+                return;
+            }
+            // Find the surface of the soma.
+            let percent = parent_radius / path_length;
+            let offset = linalg::scale(&linalg::sub(parent_coords, carrier_point), percent);
+            let surface = linalg::add(parent_coords, &offset);
+            //
+            nodes.push(Node::new_segment(
+                surface,
+                self.morphology.minimum_diameter,
+                parent_index,
+                self.instruction_index,
+                parent_radius,
+                false,
+            ));
+            parent_index = (nodes.len() - 1) as u32;
+            parent_node = &mut nodes[parent_index as usize];
+            parent_node.num_children += 1;
+        }
+        // Split up segments that are too long.
+        let start_coordinates = parent_node.coordinates;
+        let parent_path_length = parent_node.path_length;
+        let segment_length = linalg::distance(&start_coordinates, carrier_point);
+        let num_segments = (segment_length / self.morphology.maximum_segment_length).ceil() as u32;
+        // Make intermediate nodes along the length of the segment.
+        for segment in 1..num_segments {
+            let percent = segment as f64 / num_segments as f64;
+            let offset = linalg::scale(&linalg::sub(&start_coordinates, carrier_point), percent);
+            let coordinates = linalg::add(&start_coordinates, &offset);
+            nodes.push(Node::new_segment(
+                coordinates,
+                self.morphology.minimum_diameter,
+                parent_index,
+                self.instruction_index,
+                parent_path_length + percent * segment_length,
+                false,
+            ));
+            parent_index = (nodes.len() - 1) as u32;
+            parent_node = &mut nodes[parent_index as usize];
+            parent_node.num_children += 1;
+        }
+        // Make the final segment reaching to the exact carrier point.
+        nodes.push(Node::new_segment(
+            *carrier_point,
+            self.morphology.minimum_diameter,
+            parent_index,
+            self.instruction_index,
+            parent_path_length + segment_length,
+            true,
+        ));
     }
 }
 
@@ -701,6 +807,9 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
 }
 
 fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<Node>, sections: &[(u32, u32)]) {
+    if instr.carrier_points.is_empty() {
+        return;
+    }
     // Instructions without a morphology create new neurons.
     let Some(ref morph) = instr.morphology else {
         let soma_diameter = instr.soma_diameter.expect("Internal Error");
@@ -710,7 +819,7 @@ fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<
         return;
     };
 
-    let mut data = WorkingData::new(instr);
+    let mut data = WorkingData::new(instr_index as u32, instr);
 
     // Start with potential segments from all of the roots to all of the carrier points.
     for root_instr in instr.roots.iter() {
@@ -758,38 +867,41 @@ fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<
                     continue;
                 }
             }
-            // Create the new segment.
-            grow_segment(instr_index, morph, nodes, parent_index, coordinates);
-            data.occupied.set(carrier_index as usize, true);
-
-            // Now consider growing more segments off of this new node.
-            let node_index = (nodes.len() - 1) as u32;
-            data.consider_all_potential_segments(node_index, &nodes[node_index as usize]);
+            // Create the new segment and consider new growth opportunities.
+            data.grow_segment(nodes, parent_index, carrier_index);
         }
         // If not all carrier points could be reached then relax the
         // morphological constraints and retry the instruction.
         if morph.reach_all_carrier_points && !data.occupied.all() {
-            todo!();
-            // let mut potential = vec![];
-            // for carrier_index in data.occupied.iter_zeros() {
-            //     for root_instr in instr.roots.iter() {
-            //         let (section_start, section_end) = sections[*root_instr as usize];
-            //         for root_index in section_start..section_end {
-            //             let root_node = &nodes[root_index as usize];
-            //             if root_node.carrier_point {
-            //                 todo!();
-            //             }
-            //         }
-            //     }
-            // }
-            // Select the best segment.
-
-            // Grow the segment and use it as the starting point for the regular algorithm.
-            // grow_segment(instr_index, morph, nodes, parent_index, coordinates);
-            // let node_index = (nodes.len() - 1) as u32;
-            // data.consider_all_potential_segments(node_index, &nodes[node_index as usize]);
-
-            continue; // Retry the growth instruction.
+            let mut potential = vec![];
+            for root_instr in instr.roots.iter() {
+                let (section_start, section_end) = sections[*root_instr as usize];
+                for root_index in section_start..section_end {
+                    let root_node = &nodes[root_index as usize];
+                    if root_node.carrier_point {
+                        data.consider_all_potential_segments_relaxed(root_index, root_node, &mut potential);
+                    }
+                }
+            }
+            if let Some(&(_, this_section_start)) = sections.last() {
+                for root_index in this_section_start..nodes.len() as u32 {
+                    let root_node = &nodes[root_index as usize];
+                    if root_node.carrier_point {
+                        data.consider_all_potential_segments_relaxed(root_index, root_node, &mut potential);
+                    }
+                }
+            }
+            // Select the best segment, grow it, and restart the regular algorithm.
+            let Some(PotentialSegment {
+                carrier_index,
+                parent_index,
+                ..
+            }) = potential.into_iter().max()
+            else {
+                break;
+            };
+            data.grow_segment(nodes, parent_index, carrier_index);
+            continue;
         }
         break;
     }
@@ -834,80 +946,4 @@ fn check_morphological_constraints(
         }
     }
     true
-}
-
-fn grow_segment(
-    instr_index: usize,
-    morph: &Morphology,
-    nodes: &mut Vec<Node>,
-    mut parent_index: u32,
-    carrier_point: &[f64; 3],
-) {
-    let mut parent_node = &mut nodes[parent_index as usize];
-    parent_node.num_children += 1;
-    // Insert an extra node on the surface of the soma.
-    if parent_node.is_root() {
-        let parent_coords = &parent_node.coordinates;
-        let parent_radius = 0.5 * parent_node.diameter;
-        let path_length = linalg::distance(parent_coords, carrier_point);
-        // Check if the carrier point is inside of the soma's radius.
-        if parent_radius >= path_length {
-            nodes.push(Node::new_segment(
-                *carrier_point,
-                morph.minimum_diameter,
-                parent_index,
-                instr_index as u32,
-                path_length,
-                true,
-            ));
-            return;
-        }
-        // Find the surface of the soma.
-        let percent = parent_radius / path_length;
-        let offset = linalg::scale(&linalg::sub(parent_coords, carrier_point), percent);
-        let surface = linalg::add(parent_coords, &offset);
-        //
-        nodes.push(Node::new_segment(
-            surface,
-            morph.minimum_diameter,
-            parent_index,
-            instr_index as u32,
-            parent_radius,
-            false,
-        ));
-        parent_index = (nodes.len() - 1) as u32;
-        parent_node = &mut nodes[parent_index as usize];
-        parent_node.num_children += 1;
-    }
-    // Split up segments that are too long.
-    let start_coordinates = parent_node.coordinates;
-    let parent_path_length = parent_node.path_length;
-    let segment_length = linalg::distance(&start_coordinates, carrier_point);
-    let num_segments = (segment_length / morph.maximum_segment_length).ceil() as u32;
-    // Make intermediate nodes along the length of the segment.
-    for segment in 1..num_segments {
-        let percent = segment as f64 / num_segments as f64;
-        let offset = linalg::scale(&linalg::sub(&start_coordinates, carrier_point), percent);
-        let coordinates = linalg::add(&start_coordinates, &offset);
-        nodes.push(Node::new_segment(
-            coordinates,
-            morph.minimum_diameter,
-            parent_index,
-            instr_index as u32,
-            parent_path_length + percent * segment_length,
-            false,
-        ));
-        parent_index = (nodes.len() - 1) as u32;
-        parent_node = &mut nodes[parent_index as usize];
-        parent_node.num_children += 1;
-    }
-    // Make the final segment reaching to the exact carrier point.
-    nodes.push(Node::new_segment(
-        *carrier_point,
-        morph.minimum_diameter,
-        parent_index,
-        instr_index as u32,
-        parent_path_length + segment_length,
-        true,
-    ));
 }
