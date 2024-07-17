@@ -60,7 +60,7 @@ pub fn cylinder(a: &[f32; 3], b: &[f32; 3], a_diam: f32, b_diam: f32, num_slices
     (vertices, indices)
 }
 
-pub fn sphere(center: &[f32; 3], radius: f32, slices: u32) -> (Vec<[f32; 3]>, Vec<u32>) {
+pub fn sphere(center: &[f32; 3], diameter: f32, slices: u32) -> (Vec<[f32; 3]>, Vec<u32>) {
     let stacks = slices;
     let mut vertices = Vec::<[f32; 3]>::with_capacity(((stacks + 1) * (slices + 1)) as usize);
     // Calculate the Vertices.
@@ -72,6 +72,7 @@ pub fn sphere(center: &[f32; 3], radius: f32, slices: u32) -> (Vec<[f32; 3]>, Ve
         }
     }
     // Scale and offset the vertices.
+    let radius = 0.5 * diameter;
     for vertex in vertices.iter_mut() {
         vertex[0] *= radius;
         vertex[1] *= radius;

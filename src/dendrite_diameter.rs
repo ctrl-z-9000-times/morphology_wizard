@@ -62,7 +62,7 @@ impl QuadraticApprox {
             // Get the diameter parameters.
             let instr = &instructions[terminal_node.instruction_index as usize];
             let Some(morph) = &instr.morphology else { continue };
-            let scale = morph.diameter_taper;
+            let scale = morph.dendrite_taper;
             let offset = morph.minimum_diameter;
             // Interpolate between the closest polynomial approximations for this length of dendrite.
             let (interp1_index, interp_data) = interp_points(&self.dendrite_lengths, terminal_node.path_length);

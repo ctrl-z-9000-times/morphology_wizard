@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use num_traits::float::Float;
+use num_traits::{one, zero, Float, NumAssignOps};
 
 pub fn distance<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
     mag(&sub(a, b))
@@ -46,28 +46,28 @@ pub fn cross<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
 /// Both argument must already be normalized (magnitude of one).
 ///
 /// https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d/476311#476311
-pub fn rotate_align(a: &[f32; 3], b: &[f32; 3]) -> [[f32; 3]; 3] {
+pub fn rotate_align<F: Float + NumAssignOps>(a: &[F; 3], b: &[F; 3]) -> [[F; 3]; 3] {
     let c = dot(a, b); // Cosine of angle
-    let c1 = c + 1.0;
-    if c1.abs() < f32::EPSILON {
+    let c1 = c + one();
+    if c1.abs() <= F::epsilon() {
         todo!()
     } else {
         let v = cross(a, b);
         // Skew symmetric cross-product matrix.
-        let vx = [[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]];
+        let vx = [[zero(), -v[2], v[1]], [v[2], zero(), -v[0]], [-v[1], v[0], zero()]];
         // Calculate: identity-matrix + vx + vx^2 / c1
         let mut vx2 = mat3x3_sqr(&vx);
         max3x3_div_scalar(&mut vx2, c1);
         max3x3_add(&mut vx2, &vx);
-        vx2[0][0] += 1.0;
-        vx2[1][1] += 1.0;
-        vx2[2][2] += 1.0;
+        vx2[0][0] += one();
+        vx2[1][1] += one();
+        vx2[2][2] += one();
         vx2
     }
 }
 
-fn mat3x3_sqr(mat: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
-    let mut msqr = [[0.0; 3]; 3];
+fn mat3x3_sqr<F: Float + NumAssignOps>(mat: &[[F; 3]; 3]) -> [[F; 3]; 3] {
+    let mut msqr = [[zero(); 3]; 3];
     for row in 0..3 {
         for col in 0..3 {
             for inner in 0..3 {
@@ -78,7 +78,7 @@ fn mat3x3_sqr(mat: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
     msqr
 }
 
-fn max3x3_add(a: &mut [[f32; 3]; 3], b: &[[f32; 3]; 3]) {
+fn max3x3_add<F: Float + NumAssignOps>(a: &mut [[F; 3]; 3], b: &[[F; 3]; 3]) {
     for row in 0..3 {
         for col in 0..3 {
             a[row][col] += b[row][col];
@@ -86,8 +86,8 @@ fn max3x3_add(a: &mut [[f32; 3]; 3], b: &[[f32; 3]; 3]) {
     }
 }
 
-fn max3x3_div_scalar(mat: &mut [[f32; 3]; 3], div: f32) {
-    let factor = 1.0 / div;
+fn max3x3_div_scalar<F: Float + NumAssignOps>(mat: &mut [[F; 3]; 3], div: F) {
+    let factor = one::<F>() / div;
     for row in 0..3 {
         for col in 0..3 {
             mat[row][col] *= factor;
@@ -95,8 +95,8 @@ fn max3x3_div_scalar(mat: &mut [[f32; 3]; 3], div: f32) {
     }
 }
 
-pub fn vec_mat_mult(vec: &mut [f32; 3], mat: &[[f32; 3]; 3]) {
-    let mut result = [0.0, 0.0, 0.0];
+pub fn vec_mat_mult<F: Float + NumAssignOps>(vec: &mut [F; 3], mat: &[[F; 3]; 3]) {
+    let mut result = [zero(); 3];
     for col in 0..3 {
         for inner in 0..3 {
             result[col] += vec[inner] * mat[col][inner];
