@@ -885,12 +885,11 @@ fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<
                     }
                 }
             }
-            if let Some(&this_section_start) = sections.last() {
-                for root_index in this_section_start..nodes.len() as u32 {
-                    let root_node = &nodes[root_index as usize];
-                    if root_node.carrier_point {
-                        data.consider_all_potential_segments_relaxed(root_index, root_node, &mut potential);
-                    }
+            let this_section_start = *sections.last().unwrap();
+            for root_index in this_section_start..nodes.len() as u32 {
+                let root_node = &nodes[root_index as usize];
+                if root_node.carrier_point {
+                    data.consider_all_potential_segments_relaxed(root_index, root_node, &mut potential);
                 }
             }
             // Select the best segment, grow it, and restart the regular algorithm.
