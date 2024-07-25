@@ -64,8 +64,7 @@ mod python {
     ///     <https://doi.org:10.1186/1742-4682-4-21>
 
     #[pymodule]
-    #[pyo3(name = "_lib")]
-    fn neuron_morphology(m: &Bound<PyModule>) -> PyResult<()> {
+    fn morphology_wizard(m: &Bound<PyModule>) -> PyResult<()> {
         m.add_class::<crate::Morphology>()?;
         m.add_class::<crate::Instruction>()?;
         m.add_class::<crate::Node>()?;

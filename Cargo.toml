@@ -1,18 +1,22 @@
 [package]
     name = "morphology_wizard"
-    edition = "2021"
     version = "1.0.0"
+    edition = "2021"
+    description = "Create realistic neuron morphologies"
     authors = ["David McDougall <dam1784@rit.edu>"]
     license = "Proprietary"
-    description = "Create realistic neuron morphologies"
+    repository = ""
 
 [lib]
     crate-type = ["cdylib", "rlib"]
+
+[features]
+    python = ["pyo3", "numpy"]
 
 [dependencies]
     bitvec = "1"
     kiddo = "4"
     num-traits = "0.2"
-    numpy = "0.21"
+    numpy = {version = "0.21", optional = true}
     pyo3 = {version = "0.21", features = ["extension-module", "multiple-pymethods", "serde"], optional = true}
     serde = {version = "1", features = ["derive"]}
