@@ -11,76 +11,25 @@
     <script type="text/javascript" src="/entity_editor.js"></script>
     <script type="text/javascript" src="/instructions_cfg.js"></script>
     <script type="text/javascript" src="/carrier_points_cfg.js"></script>
+    <script type="importmap" type="module">
+      {
+        "imports": {
+          "three": "/three.module.js",
+          "three/addons/": "/examples/jsm/",
+          "viewer": "/viewer.js",
+          "main": "/main.js"
+        }
+      }
+    </script>
     <link rel="stylesheet" href="entity_editor.css" />
   </head>
   <body id="body">
-    <script type="text/javascript">
-      const { invoke } = window.__TAURI__.tauri
-      const { listen } = window.__TAURI__.event;
 
-      // Generate the body of the application.
-      const instructions = new EntityManager(instructions_cfg)
-      body.appendChild(instructions.frame)
-
-      const carrier_points = new EntityManager(carrier_points_cfg)
-      body.appendChild(carrier_points.frame)
-
-
-      function generate_morphology() {
-        const entities = JSON.parse(get_entity_data())
-        console.log(entities)
-        invoke('generate_morphology', entities)
-      }
-
-      function reset() {
-        const result = confirm('Create new model?\nThis will discard the current model.')
-        result.then((choice) => {
-          if (choice) {
-            set_entity_data()
-          }
-        })
-      }
-
-      function save() {
-        const data = get_entity_data()
-        const blob = new Blob([data], {type : 'application/json'})
-        const url  = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href  = url
-        link.download = "morphology.json"
-        link.click()
-        URL.revokeObjectURL(url)
-      }
-
-      function load(file) {
-        const reader = new FileReader()
-        reader.onload = (event => set_entity_data(event.target.result))
-        reader.readAsText(file)
-      }
-
-      // Auto-load from persistent app storage or fallback to default initial state.
-      set_entity_data(localStorage.getItem("morphology_wizard_autosave"))
-      // Auto-save on a regular basis, in clase of program crash.
-      function auto_save() {
-        localStorage.setItem("morphology_wizard_autosave", get_entity_data())
-      }
-      setInterval(auto_save, 30 * 1000);
-      // Auto-save on page hide (minimize or suspend).
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-          auto_save()
-        }
-      })
-      // Auto-save on tauri shutdown (tauri does not call on beforeunload hook).
-      async function register_save_on_exit() {
-        const unlisten = await listen("tauri://close-requested", (event) => {
-          auto_save()
-        });
-      }
-      register_save_on_exit()
+    <script type="module">
+      import {} from 'main';
     </script>
 
-    <button type="button" onclick="generate_morphology()">
+    <button type="button" id="generate_morphology">
       Generate Morphology
     </button>
   </body>
