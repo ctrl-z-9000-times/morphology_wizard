@@ -2,38 +2,46 @@
 
 #![allow(dead_code)]
 
-use num_traits::{one, zero, Float, NumAssignOps};
-
-pub fn distance<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
+pub fn distance(a: &[f64; 3], b: &[f64; 3]) -> f64 {
     mag(&sub(a, b))
 }
 
-pub fn angle<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
+pub fn angle(a: &[f64; 3], b: &[f64; 3]) -> f64 {
     (dot(a, b) / mag(a) / mag(b)).acos()
 }
 
-pub fn dot<F: Float>(a: &[F; 3], b: &[F; 3]) -> F {
+pub fn dot(a: &[f64; 3], b: &[f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// Vector length.
-pub fn mag<F: Float>(x: &[F; 3]) -> F {
+pub fn mag(x: &[f64; 3]) -> f64 {
     (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)).sqrt()
 }
 
-pub fn sub<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
+/// Divide the vector by its length, returns the original length.
+pub fn normalize(x: &mut [f64; 3]) -> f64 {
+    let mag = mag(x);
+    let scale = 1.0 / mag;
+    x[0] *= scale;
+    x[1] *= scale;
+    x[2] *= scale;
+    mag
+}
+
+pub fn sub(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
     [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
 }
 
-pub fn add<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
+pub fn add(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
 
-pub fn scale<F: Float>(x: &[F; 3], f: F) -> [F; 3] {
+pub fn scale(x: &[f64; 3], f: f64) -> [f64; 3] {
     [f * x[0], f * x[1], f * x[2]]
 }
 
-pub fn cross<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
+pub fn cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -46,28 +54,28 @@ pub fn cross<F: Float>(a: &[F; 3], b: &[F; 3]) -> [F; 3] {
 /// Both argument must already be normalized (magnitude of one).
 ///
 /// https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d/476311#476311
-pub fn rotate_align<F: Float + NumAssignOps>(a: &[F; 3], b: &[F; 3]) -> [[F; 3]; 3] {
+pub fn rotate_align(a: &[f64; 3], b: &[f64; 3]) -> [[f64; 3]; 3] {
     let c = dot(a, b); // Cosine of angle
-    let c1 = c + one();
-    if c1.abs() <= F::epsilon() {
+    let c1 = c + 1.0;
+    if c1.abs() <= f64::EPSILON {
         todo!()
     } else {
         let v = cross(a, b);
         // Skew symmetric cross-product matrix.
-        let vx = [[zero(), -v[2], v[1]], [v[2], zero(), -v[0]], [-v[1], v[0], zero()]];
+        let vx = [[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]];
         // Calculate: identity-matrix + vx + vx^2 / c1
         let mut vx2 = mat3x3_sqr(&vx);
         max3x3_div_scalar(&mut vx2, c1);
         max3x3_add(&mut vx2, &vx);
-        vx2[0][0] += one();
-        vx2[1][1] += one();
-        vx2[2][2] += one();
+        vx2[0][0] += 1.0;
+        vx2[1][1] += 1.0;
+        vx2[2][2] += 1.0;
         vx2
     }
 }
 
-fn mat3x3_sqr<F: Float + NumAssignOps>(mat: &[[F; 3]; 3]) -> [[F; 3]; 3] {
-    let mut msqr = [[zero(); 3]; 3];
+fn mat3x3_sqr(mat: &[[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    let mut msqr = [[0.0; 3]; 3];
     for row in 0..3 {
         for col in 0..3 {
             for inner in 0..3 {
@@ -78,7 +86,7 @@ fn mat3x3_sqr<F: Float + NumAssignOps>(mat: &[[F; 3]; 3]) -> [[F; 3]; 3] {
     msqr
 }
 
-fn max3x3_add<F: Float + NumAssignOps>(a: &mut [[F; 3]; 3], b: &[[F; 3]; 3]) {
+fn max3x3_add(a: &mut [[f64; 3]; 3], b: &[[f64; 3]; 3]) {
     for row in 0..3 {
         for col in 0..3 {
             a[row][col] += b[row][col];
@@ -86,8 +94,8 @@ fn max3x3_add<F: Float + NumAssignOps>(a: &mut [[F; 3]; 3], b: &[[F; 3]; 3]) {
     }
 }
 
-fn max3x3_div_scalar<F: Float + NumAssignOps>(mat: &mut [[F; 3]; 3], div: F) {
-    let factor = one::<F>() / div;
+fn max3x3_div_scalar(mat: &mut [[f64; 3]; 3], div: f64) {
+    let factor = 1.0 / div;
     for row in 0..3 {
         for col in 0..3 {
             mat[row][col] *= factor;
@@ -95,8 +103,8 @@ fn max3x3_div_scalar<F: Float + NumAssignOps>(mat: &mut [[F; 3]; 3], div: F) {
     }
 }
 
-pub fn vec_mat_mult<F: Float + NumAssignOps>(vec: &mut [F; 3], mat: &[[F; 3]; 3]) {
-    let mut result = [zero(); 3];
+pub fn vec_mat_mult(vec: &mut [f64; 3], mat: &[[f64; 3]; 3]) {
+    let mut result = [0.0; 3];
     for col in 0..3 {
         for inner in 0..3 {
             result[col] += vec[inner] * mat[col][inner];

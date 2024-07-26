@@ -1,0 +1,68 @@
+{
+  "package": {
+    "productName": "Morphology Wizard"
+  },
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "devPath": "../ui",
+    "distDir": "../ui",
+    "withGlobalTauri": true
+  },
+  "tauri": {
+    "allowlist": {
+      "dialog": {
+        "confirm": true
+      }
+    },
+    "windows": [
+      {
+        "title": "Morphology Wizard",
+        "fullscreen": false,
+        "resizable": true,
+        "fileDropEnabled": false,
+        "height": 600,
+        "width": 800
+      }
+    ],
+    "updater": {
+      "active": false
+    },
+    "security": {
+      "csp": null
+    },
+    "bundle": {
+      "active": true,
+      "identifier": "com.tauri.dev",
+      "shortDescription": "Create realistic neuron morphologies",
+      "longDescription": "",
+      "copyright": "",
+      "category": "DeveloperTool",
+      "externalBin": [],
+      "resources": [],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "targets": "all",
+      "deb": {
+        "depends": []
+      },
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
+    }
+  }
+}

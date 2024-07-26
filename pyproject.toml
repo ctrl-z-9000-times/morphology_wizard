@@ -4,7 +4,7 @@
 
 [tool.maturin]
     module-name = "morphology_wizard"
-    features = ["python"]
+    features = ["pyo3"]
     profile = "release"
     strip = true
 
