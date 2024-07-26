@@ -25,6 +25,7 @@
 //!     Theoretical Biology and Medical Modelling 2007, 4:21  
 //!     <https://doi.org:10.1186/1742-4682-4-21>
 
+mod carrier_points;
 mod dendrite_diameter;
 mod formats;
 mod linalg;
@@ -80,16 +81,17 @@ pub struct Morphology {
     /// Units: microns  
     pub minimum_diameter: f64,
 
-    /// Scales the size of the dendrite tapering effect. A value of zero will
-    /// yield a constant diameter dendrite with no tapering. Larger values will
-    /// yeild larger dendrites. Must be greater than or equal to zero.
+    /// Scale the size of the dendrite tapering effect.  
+    /// A value of zero yields a dendrite with constant diameter and no tapering.
+    /// Larger values yield larger and more tapered dendrites.  
+    /// Must be greater than or equal to zero.  
     pub dendrite_taper: f64,
 
     /// Segments longer than this length will be automatically broken up into
     /// multiple shorter segments.
     pub maximum_segment_length: f64,
 
-    ///
+    /// Override the morphological constraints in order to reach all carrier points.
     pub reach_all_carrier_points: bool,
 }
 

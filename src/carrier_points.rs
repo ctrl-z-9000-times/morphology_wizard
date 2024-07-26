@@ -1,12 +1,12 @@
+use crate::linalg;
 use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
-use morphology_wizard::linalg;
 use rand::distributions::uniform::Uniform;
 use rand::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::f64::consts::PI;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CarrierPoints {
     Point {
@@ -62,7 +62,18 @@ pub enum CarrierPoints {
 }
 
 impl CarrierPoints {
-    pub fn take_name(&mut self) -> String {
+    #[allow(dead_code)]
+    pub fn name(&mut self) -> String {
+        match self {
+            Self::Point { name, .. }
+            | Self::Sphere { name, .. }
+            | Self::Cylinder { name, .. }
+            | Self::Cone { name, .. }
+            | Self::Box { name, .. }
+            | Self::Import { name, .. } => name.clone(),
+        }
+    }
+    pub(crate) fn take_name(&mut self) -> String {
         match self {
             Self::Point { name, .. }
             | Self::Sphere { name, .. }
