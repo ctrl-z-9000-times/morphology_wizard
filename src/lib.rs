@@ -29,8 +29,6 @@ mod carrier_points;
 mod dendrite_diameter;
 mod formats;
 mod linalg;
-#[cfg(feature = "pyo3")]
-mod python;
 
 use bitvec::prelude::*;
 pub use formats::*;
@@ -41,6 +39,46 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::f64::consts::PI;
+
+/// Create realistic neuron morphologies.
+///
+/// This implements the TREES algorithm combined with the morphological
+/// constraints of the ROOTS algorithm.
+///
+/// TREES:
+///     One Rule to Grow Them All: A General Theory of Neuronal Branching
+///     and Its Practical Application.  
+///     Cuntz H, Forstner F, Borst A, Hausser M (2010)  
+///     PLoS Comput Biol 6(8): e1000877.  
+///     https://doi.org/10.1371/journal.pcbi.1000877
+///
+/// ROOTS:
+///     ROOTS: An Algorithm to Generate Biologically Realistic Cortical
+///     Axons and an Application to Electroceutical Modeling.  
+///     Bingham CS, Mergenthal A, Bouteiller J-MC, Song D, Lazzi G and
+///     Berger TW (2020)  
+///     Front. Comput. Neurosci. 14:13.  
+///     https://doi.org/10.3389/fncom.2020.00013
+///
+/// Dendrite Diameter:
+///     Optimization principles of dendritic structure.
+///     Hermann Cuntz, Alexander Borst and Idan Segev (2007)
+///     Theoretical Biology and Medical Modelling 2007, 4:21
+///     <https://doi.org:10.1186/1742-4682-4-21>
+
+#[cfg(feature = "pyo3")]
+#[pymodule]
+fn morphology_wizard(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<Morphology>()?;
+    m.add_class::<Instruction>()?;
+    m.add_class::<Node>()?;
+    m.add_function(wrap_pyfunction!(crate::create_py, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::formats::import_save_py, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::formats::export_swc_py, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::formats::export_nml_py, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::formats::export_nrn_py, m)?)?;
+    Ok(())
+}
 
 /// Container for the morphological parameters of a neuron's dendrite or axon.
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
@@ -574,7 +612,16 @@ impl Ord for PotentialSegment {
 
 /// Execute a list of neuron growth instructions.
 ///
-/// Returns a list of Nodes in topologically sorted order.
+/// Returns a list of nodes in topologically sorted order.
+#[cfg(feature = "pyo3")]
+#[pyfunction(name = "create")]
+pub(crate) fn create_py(py: Python<'_>, instructions: Vec<Instruction>) -> Vec<Node> {
+    py.allow_threads(|| crate::create(&instructions))
+}
+
+/// Execute a list of neuron growth instructions.
+///
+/// Returns a list of nodes in topologically sorted order.
 pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     Instruction::check(instructions);
     // Preallocate space for all of the returned nodes.

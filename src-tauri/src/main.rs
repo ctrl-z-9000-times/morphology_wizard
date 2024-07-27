@@ -1,9 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::f64::consts::PI;
 use tauri::{CustomMenuItem, Menu, MenuItem, Submenu, WindowMenuEvent};
 
 fn main() {
@@ -45,10 +42,14 @@ fn editor_menu_init() -> Menu {
 
 fn editor_menu_callback(event: WindowMenuEvent) {
     match event.menu_item_id() {
+        "new" => {}
+        "save" => {}
+        "load" => {}
+        "swc" => {}
         "quit" => {
             std::process::exit(0);
         }
-        _ => {}
+        other => eprintln!("Unimplemented menu button: {other}"),
     }
 }
 
