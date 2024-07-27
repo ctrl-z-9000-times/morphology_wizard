@@ -1,3 +1,5 @@
+use crate::{Instruction, Morphology, Node};
+use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -30,35 +32,42 @@ use pyo3::types::{PyDict, PyList};
 
 #[pymodule]
 fn morphology_wizard(m: &Bound<PyModule>) -> PyResult<()> {
-    m.add_class::<crate::Morphology>()?;
-    m.add_class::<crate::Instruction>()?;
-    m.add_class::<crate::Node>()?;
+    m.add_class::<Morphology>()?;
+    m.add_class::<Instruction>()?;
+    m.add_class::<Node>()?;
 
     /// Execute a list of neuron growth instructions.
     ///
     /// Returns a list of Nodes in topologically sorted order.
     #[pyfn(m)]
-    fn create(py: Python<'_>, instructions: Vec<crate::Instruction>) -> Vec<crate::Node> {
+    fn create(py: Python<'_>, instructions: Vec<Instruction>) -> Vec<Node> {
         py.allow_threads(|| crate::create(&instructions))
     }
 
-    /*
+    /// Parse a save-file from the morphology-wizard's graphical user interface.
+    #[pyfn(m)]
+    fn import_save(py: Python<'_>, save_file: &str) -> PyResult<Vec<Instruction>> {
+        py.allow_threads(|| crate::import_save(&save_file))
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
     /// Format a list of nodes in the SWC neuron morphology format.
+    ///
+    /// Returns a list of SWC files, one per neuron.
     ///
     /// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
     #[pyfn(m)]
-    fn create_swc(py: Python<'_>, nodes: Vec<crate::Node>) -> String {
-        py.allow_threads(|| crate::formats::create_swc(&nodes))
+    fn export_swc(py: Python<'_>, instructions: Vec<Instruction>, nodes: Vec<Node>) -> Vec<String> {
+        py.allow_threads(|| crate::export_swc(&instructions, &nodes))
     }
 
     /// Format a list of nodes in the NeuroML v2 neuron description format.
     ///
     /// https://docs.neuroml.org
     #[pyfn(m)]
-    fn create_nml(py: Python<'_>, nodes: Vec<crate::Node>) -> String {
-        py.allow_threads(|| crate::formats::create_nml(&nodes))
+    fn export_nml(py: Python<'_>, instructions: Vec<Instruction>, nodes: Vec<Node>) -> String {
+        py.allow_threads(|| crate::export_nml(&instructions, &nodes))
     }
-    */
 
     /// Execute a list of neuron growth instructions and load the results
     /// into the NEURON simulator via its python API. Returns a list of
@@ -67,7 +76,7 @@ fn morphology_wizard(m: &Bound<PyModule>) -> PyResult<()> {
     ///
     /// https://neuron.yale.edu/neuron/
     #[pyfn(m)]
-    fn export_nrn(py: Python<'_>, instructions: Vec<crate::Instruction>) -> PyResult<PyObject> {
+    fn export_nrn(py: Python<'_>, instructions: Vec<Instruction>) -> PyResult<PyObject> {
         // First import the "Section" class from the "neuron.h" python module.
         let neuron = PyModule::import_bound(py, "neuron")?;
         let neuron_h = neuron.getattr("h")?;
