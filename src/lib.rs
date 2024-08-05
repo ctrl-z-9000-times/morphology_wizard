@@ -64,7 +64,7 @@ use std::f64::consts::PI;
 ///     Optimization principles of dendritic structure.
 ///     Hermann Cuntz, Alexander Borst and Idan Segev (2007)
 ///     Theoretical Biology and Medical Modelling 2007, 4:21
-///     <https://doi.org:10.1186/1742-4682-4-21>
+///     https://doi.org:10.1186/1742-4682-4-21
 
 #[cfg(feature = "pyo3")]
 #[pymodule]

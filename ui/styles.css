@@ -1,0 +1,11 @@
+
+body {
+    display: inline-flex;
+    flex-flow: row wrap;
+    border: ridge 5px;
+    margin: 0px;
+}
+
+body > div {
+    margin: 1em;
+}

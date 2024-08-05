@@ -199,7 +199,7 @@ const import_cfg = {
     }
   ]
 }
-const carrier_points_cfg = {
+export const carrier_points_cfg = {
   name: "carrier_points",
   entities: [
     point_cfg,

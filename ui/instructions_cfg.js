@@ -140,7 +140,7 @@ const axon_cfg = {
     },
   ]
 }
-const instructions_cfg = {
+export const instructions_cfg = {
   name: "instructions",
   title: "Growth Instructions",
   entities: [

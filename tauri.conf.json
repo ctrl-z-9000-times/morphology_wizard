@@ -5,8 +5,8 @@
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "devPath": "../ui",
-    "distDir": "../ui",
+    "devPath": "ui",
+    "distDir": "ui",
     "withGlobalTauri": true
   },
   "tauri": {
@@ -18,11 +18,24 @@
     "windows": [
       {
         "title": "Morphology Wizard",
-        "fullscreen": false,
-        "resizable": true,
-        "fileDropEnabled": false,
-        "height": 600,
-        "width": 800
+        "label": "morphology_wizard",
+        "minimizable":       true,
+        "maximizable":       true,
+        "resizable":         true,
+        "closable":          true,
+        "fullscreen":        false,
+        "focus":             true,
+        "decorations":       true,
+        "visible":           true,
+        "alwaysOnTop":       false,
+        "contentProtected":  false,
+        "skipTaskbar":       false,
+        "acceptFirstMouse":  false,
+        "hiddenTitle":       false,
+        "tabbingIdentifier": "morphoology_wizard",
+        "fileDropEnabled":   false,
+        "width":  1280,
+        "height": 720
       }
     ],
     "updater": {
@@ -33,13 +46,14 @@
     },
     "bundle": {
       "active": true,
-      "identifier": "com.tauri.dev",
+      "targets": "all",
+      "identifier": "com.tauri.morph_wiz",
       "shortDescription": "Create realistic neuron morphologies",
       "longDescription": "",
-      "copyright": "",
+      "copyright": "2024 David McDougall",
       "category": "DeveloperTool",
-      "externalBin": [],
       "resources": [],
+      "externalBin": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -47,7 +61,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "targets": "all",
+      "appimage": {},
       "deb": {
         "depends": []
       },
