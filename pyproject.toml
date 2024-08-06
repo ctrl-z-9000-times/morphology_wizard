@@ -6,7 +6,6 @@
     module-name = "morphology_wizard"
     features = ["pyo3"]
     profile = "release"
-    strip = true
 
 [project]
     name = "morphology_wizard"

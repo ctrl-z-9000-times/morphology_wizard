@@ -201,6 +201,7 @@ const import_cfg = {
 }
 export const carrier_points_cfg = {
   name: "carrier_points",
+  sorted: true,
   entities: [
     point_cfg,
     sphere_cfg,

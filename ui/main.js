@@ -1,126 +1,77 @@
 const { listen } = window.__TAURI__.event
 const { invoke } = window.__TAURI__.tauri
-import { EntityManager, get_entity_data, set_entity_data} from 'entity_maker'
-import { instructions_cfg }   from 'instructions_cfg'
-import { carrier_points_cfg } from 'carrier_points_cfg'
-import { update_viewer } from 'viewer'
+import { EntityManager, set_data } from "entity_maker"
+import { instructions_cfg }   from "instructions_cfg"
+import { carrier_points_cfg } from "carrier_points_cfg"
 
 // Generate the body of the application.
 const instructions = new EntityManager(instructions_cfg)
-instructions_frame.appendChild(instructions.frame)
+instructions_div.appendChild(instructions.domElement)
 
 const carrier_points = new EntityManager(carrier_points_cfg)
-carrier_points_frame.appendChild(carrier_points.frame)
+carrier_points_div.appendChild(carrier_points.domElement)
 
 // Switch to the growth instructions tab.
 function instructions_tab() {
-    instructions_frame.style.display = ""
-    carrier_points_frame.style.display = "none"
+    instructions_div.style.display = ""
+    carrier_points_div.style.display = "none"
 }
 
 // Switch to the carrier points tab.
 function carrier_points_tab() {
-    instructions_frame.style.display = "none"
-    carrier_points_frame.style.display = ""
+    instructions_div.style.display = "none"
+    carrier_points_div.style.display = ""
 }
+
+// Listen for user tab-switching events.
+await listen("menu_event", (event) => {
+    if (event.payload == "instr") {
+        instructions_tab()
+    }
+    else if (event.payload == "points") {
+        carrier_points_tab()
+    }
+    else {
+        console.warn(`Unhandled menu item ${event.payload}`)
+    }
+})
 
 // Initially show the growth instructions tab.
 instructions_tab()
 
-// Automatic Save & Load uses the webview's built-in local storage.
-function auto_save() {
-    localStorage.setItem("morphology_wizard_autosave", get_entity_data())
-}
-function auto_load() {
-    // If data is missing then this will fallback to default initial state.
-    set_entity_data(localStorage.getItem("morphology_wizard_autosave"))
-}
-
-// Auto-save on a regular basis, in case of program crash.
-setInterval(auto_save, 60 * 1000); // The delay is in milliseconds.
-
-// Auto-save on page hide (minimize or suspend).
-document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-        auto_save()
-    }
+// Detect changes to the entity data and preemptively transmit them to the back-end.
+instructions.create_hooks.push((instr) => {
+    invoke("instr_create", {instr: instr})
+})
+instructions.delete_hooks.push(() => {
+    invoke("instr_delete", {index: instructions.get_selected_index()})
+})
+instructions.move_hooks.push((index_1, index_2) => {
+    invoke("instr_move", {index_1: index_1, index_2: index_2})
+})
+instructions.change_hooks.push((instr) => {
+    invoke("instr_change", {index: instructions.get_selected_index(), instr: instr})
+})
+instructions.rename_hooks.push((old_name, new_name) => {
+    invoke("instr_rename", {old_name: old_name, new_name: new_name})
+})
+carrier_points.create_hooks.push((points) => {
+    invoke("points_create", {points: points})
+})
+carrier_points.change_hooks.push((points) => {
+    invoke("points_change", {points: points})
+})
+carrier_points.delete_hooks.push((points) => {
+    invoke("points_delete", {name: points.name})
+})
+carrier_points.rename_hooks.push((old_name, new_name) => {
+    invoke("points_rename", {old_name: old_name, new_name: new_name})
 })
 
-// Auto-save on tauri shutdown (tauri does not call the onbeforeunload hook).
-async function register_save_on_exit() {
-    await listen("tauri://close-requested", (event) => {
-        auto_save()
-    });
-}
-register_save_on_exit()
+// Allow the back-end to call "set_data".
+await listen("set_data", (event) => {
+    set_data(event.payload)
+})
 
-// Auto-load at startup from persistent app storage.
-auto_load()
-
-// 
-var enable_preview = true
-function toggle_preview() {
-    enable_preview = !enable_preview
-    if (enable_preview) {
-        viewport_frame.style.display = ""
-    }
-    else {
-        viewport_frame.style.display = "none"
-    }
-    invoke('set_live_preview', {enable: enable_preview})
-}
-
-// 
-async function register_menu_callbacks() {
-    await listen("menu_event", (event) => {
-        if (event.payload == "new") {
-            const result = confirm('Create new model?\nThis will discard the current model.')
-            result.then((choice) => {
-                if (choice) {
-                    set_entity_data()
-                }
-            })
-        }
-        else if (event.payload == "save") {
-            invoke('save', {instructions: get_entity_data()})
-        }
-        else if (event.payload == "load") {
-            const reader = new FileReader()
-            reader.onload = (event => set_entity_data(event.target.result))
-            reader.readAsText(file)
-        }
-        else if (event.payload == "swc") {
-            invoke('export_swc', {instructions: get_entity_data(), nodes: []})
-                .then((data) => {save_file_dialog(data, "text/plain", "morphology.swc")})
-        }
-        else if (event.payload == "nml") {
-            invoke('export_nml', {instructions: get_entity_data(), nodes: []})
-                .then((data) => {save_file_dialog(data, "application/xml", "morphology.nml")})
-        }
-        else if (event.payload == "nrn") {
-            invoke('export_nrn', {instructions: get_entity_data(), nodes: []})
-                .then((data) => {save_file_dialog(data, "text/plain", "morphology.py")})
-        }
-        else if (event.payload == "quit") {
-            auto_save()
-            window.close()
-        }
-        else if (event.payload == "instr") {
-            instructions_tab()
-        }
-        else if (event.payload == "points") {
-            carrier_points_tab()
-        }
-        else if (event.payload == "preview") {
-            toggle_preview()
-        }
-        else if (event.payload == "generate") {
-            invoke('generate_morphology', {save_file: get_entity_data()})
-                .then((nodes) => {update_viewer(instructions.get_data(), nodes)})
-        }
-        else {
-            console.warn(`Unimplemented menu item ${event.payload}`)
-        }
-    })
-}
-register_menu_callbacks()
+// The back-end can't load the autosave file until the front-end has setup the "set_data" listener.
+invoke("auto_load")

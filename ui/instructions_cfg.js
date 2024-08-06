@@ -85,6 +85,7 @@ const axon_cfg = {
       units: "radians",
       min: 0,
       max: 3.1415926535897932385,
+      default: 3.1415926535897932385,
     },
     {
       name: "branch_distance",
@@ -99,6 +100,7 @@ const axon_cfg = {
       units: "radians",
       min: 0,
       max: 3.1415926535897932385,
+      default: 2.0245819323134224,
     },
     {
       name: "maximum_branches",

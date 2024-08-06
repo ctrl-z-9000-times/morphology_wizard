@@ -1,18 +1,22 @@
 use crate::{carrier_points::CarrierPoints, Instruction, Morphology, Node};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
-#[derive(Debug, Deserialize)]
-struct SaveFile {
-    instructions: Vec<SaveInstruction>,
-    carrier_points: Vec<CarrierPoints>,
+/// Native data structure for the graphical user interface.
+#[doc(hidden)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SaveFile {
+    pub instructions: Vec<GuiInstruction>,
+    pub carrier_points: Vec<CarrierPoints>,
 }
-#[derive(Debug, Deserialize)]
+
+#[doc(hidden)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
-enum SaveInstruction {
+pub enum GuiInstruction {
     Soma {
         name: String,
         carrier_points: Vec<String>,
@@ -43,26 +47,49 @@ enum SaveInstruction {
         reach_all_carrier_points: bool,
     },
 }
-impl SaveInstruction {
-    fn take_name(&mut self) -> String {
+impl GuiInstruction {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Soma { name, .. } | Self::Dendrite { name, .. } | Self::Axon { name, .. } => name,
+        }
+    }
+    pub fn set_name(&mut self, new_name: String) {
+        match self {
+            Self::Soma { name, .. } | Self::Dendrite { name, .. } | Self::Axon { name, .. } => *name = new_name,
+        }
+    }
+    pub fn take_name(&mut self) -> String {
         match self {
             Self::Soma { name, .. } | Self::Dendrite { name, .. } | Self::Axon { name, .. } => std::mem::take(name),
         }
     }
-    fn carrier_points(&self) -> &[String] {
+    pub fn carrier_points(&self) -> &[String] {
         match self {
             Self::Soma { carrier_points, .. }
             | Self::Dendrite { carrier_points, .. }
             | Self::Axon { carrier_points, .. } => carrier_points,
         }
     }
-    fn roots(&self) -> &[String] {
+    pub fn carrier_points_mut(&mut self) -> &mut [String] {
+        match self {
+            Self::Soma { carrier_points, .. }
+            | Self::Dendrite { carrier_points, .. }
+            | Self::Axon { carrier_points, .. } => carrier_points,
+        }
+    }
+    pub fn roots(&self) -> &[String] {
         match self {
             Self::Soma { .. } => &[],
             Self::Dendrite { roots, .. } | Self::Axon { roots, .. } => roots,
         }
     }
-    fn morphology(&self) -> Option<Morphology> {
+    pub fn roots_mut(&mut self) -> &mut [String] {
+        match self {
+            Self::Soma { .. } => &mut [],
+            Self::Dendrite { roots, .. } | Self::Axon { roots, .. } => roots,
+        }
+    }
+    pub fn morphology(&self) -> Option<Morphology> {
         match *self {
             Self::Soma { .. } => None,
             Self::Dendrite {
@@ -111,11 +138,37 @@ impl SaveInstruction {
             }),
         }
     }
+    pub fn instruction(&self, carrier_points: Vec<[f64; 3]>, roots: Vec<u32>) -> Instruction {
+        let morphology = self.morphology();
+        match self {
+            Self::Soma { soma_diameter, .. } => Instruction {
+                morphology,
+                soma_diameter: Some(*soma_diameter),
+                carrier_points,
+                roots,
+            },
+            Self::Dendrite { .. } => Instruction {
+                morphology,
+                soma_diameter: None,
+                carrier_points,
+                roots,
+            },
+            Self::Axon { .. } => Instruction {
+                morphology,
+                soma_diameter: None,
+                carrier_points,
+                roots,
+            },
+        }
+    }
 }
 
 /// Parse a save-file from the morphology-wizard's graphical user interface.
+/// This generates random carrier points as necessary.
 ///
 /// Argument "save_file" is the content of the file (not the file name).
+///
+/// Returns a list of Instructions.
 #[cfg(feature = "pyo3")]
 #[pyfunction(name = "import_save")]
 pub(crate) fn import_save_py(py: Python<'_>, save_file: &str) -> PyResult<Vec<Instruction>> {
@@ -123,9 +176,12 @@ pub(crate) fn import_save_py(py: Python<'_>, save_file: &str) -> PyResult<Vec<In
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))
 }
 
-/// Parse a save-file from the morphology-wizard's graphical user interface.
+/// Parse a save-file from the morphology-wizard's graphical user interface.  
+/// This generates random carrier points as necessary.
 ///
 /// Argument `save_file` is the content of the file (not the file name).
+///
+/// Returns a list of Instructions.
 pub fn import_save(save_file: &str) -> Result<Vec<Instruction>, serde_json::Error> {
     let SaveFile {
         mut instructions,
@@ -154,28 +210,7 @@ pub fn import_save(save_file: &str) -> Result<Vec<Instruction>, serde_json::Erro
                 points
             });
             //
-            let morphology = instr.morphology();
-            //
-            match instr {
-                SaveInstruction::Soma { soma_diameter, .. } => Instruction {
-                    morphology,
-                    soma_diameter: Some(soma_diameter),
-                    carrier_points,
-                    roots,
-                },
-                SaveInstruction::Dendrite { .. } => Instruction {
-                    morphology,
-                    soma_diameter: None,
-                    carrier_points,
-                    roots,
-                },
-                SaveInstruction::Axon { .. } => Instruction {
-                    morphology,
-                    soma_diameter: None,
-                    carrier_points,
-                    roots,
-                },
-            }
+            instr.instruction(carrier_points, roots)
         })
         .collect())
 }

@@ -1,22 +1,81 @@
-import * as THREE from 'three';
+const { listen } = window.__TAURI__.event
+const { invoke } = window.__TAURI__.tauri
+import * as THREE from 'three'
+import { ArcballControls } from 'three/addons/controls/ArcballControls.js'
+import { FlyControls }     from 'three/addons/controls/FlyControls.js'
 
-import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
+// Create the basic structures for 3D rendering.
+const renderer = new THREE.WebGLRenderer()
+const scene    = new THREE.Scene()
+viewport_div.appendChild(renderer.domElement)
+// Main render loop, called every tick.
+renderer.setAnimationLoop(() => {
+    renderer.render(scene, camera3d)
+})
+// Log performance diagnostics to the console.
+function log_info() {
+    console.log(renderer.info)
+}
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+// Setup a 3D perspective camera.
+let camera_fov     = 75         // Field Of View.
+let camera_dims    = [640, 480] // Width & Height of render target.
+let camera_dist    = 0.1        // Camera image plane distance.
+let view_distance  = 10000      // Maximum viewing distance.
+const camera3d     = new THREE.PerspectiveCamera(camera_fov, camera_dims[0] / camera_dims[1], camera_dist, view_distance)
+renderer.setSize(camera_dims[0], camera_dims[1])
 
-const renderer = new THREE.WebGLRenderer();
-// renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.setSize( 640, 480 );
-renderer.setAnimationLoop( animate );
-viewport_frame.appendChild( renderer.domElement );
+// Set the width and height of the render target.
+// Argument "dims" is array of [width, height] in pixels.
+// If argument is missing then this uses the window's width and height.
+function update_camera_size(dims) {
+    if (dims) {
+        camera_dims = dims
+    }
+    else {
+        camera_dims = [window.innerWidth, window.innerHeight]
+    }
+    camera3d.fov = camera_dims[0] / camera_dims[1]
+    renderer.setSize(camera_dims[0], camera_dims[1])
+}
 
-camera.position.z = 5;
+// Resize the view-port to take up the whole window.
+update_camera_size()
+window.addEventListener('resize', () => {
+    update_camera_size()
+})
 
-const materials = [] // TODO?
+// Reset's the camera's position and orientation.
+function reset_camera() {
+    camera3d.position.set( 0, 20, 100 )
+    camera3d.up.set(0, 1 ,0)
+    camera3d.lookAt(0, 0, 0)
+    camera3d.updateProjectionMatrix()
+    controls.update()
+}
+
+// Setup the user control scheme.
+let controls = null
+function ball_control() {
+    if (controls) {
+        controls.dispose()
+    }
+    controls = new ArcballControls(camera3d, renderer.domElement, scene)
+}
+function fps_control() {
+    if (controls) {
+        controls.dispose()
+    }
+    controls = new FlyControls(camera3d, renderer.domElement)
+}
+// Initially use trackball style controls.
+ball_control()
+reset_camera()
+
+// Setup the 3D geometry.
 const meshes_by_instr = []
 
-export function clear_viewer() {
+function clear_viewer() {
     for (const mesh_list of meshes_by_instr) {
         scene.remove(...mesh_list)
     }
@@ -25,7 +84,7 @@ export function clear_viewer() {
     }
 }
 
-export function update_viewer(instructions, nodes) {
+function update_viewer(instructions, nodes) {
 
     clear_viewer()
 
@@ -33,16 +92,16 @@ export function update_viewer(instructions, nodes) {
         meshes_by_instr.push([])
     }
 
-    const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+    const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } )
 
     for (const node of nodes) {
         if (node.parent_index > nodes.length) {
             const radius   = 0.5 * node.diameter
             const slices   = Math.max(2, (0.5 * radius).toFixed())
-            const geometry = new THREE.SphereGeometry(radius, 2 * slices, slices);
-            const mesh     = new THREE.Mesh(geometry, material);
+            const geometry = new THREE.SphereGeometry(radius, 2 * slices, slices)
+            const mesh     = new THREE.Mesh(geometry, material)
             mesh.position.set(...node.coordinates)
-            scene.add(mesh);
+            scene.add(mesh)
             meshes_by_instr[node.instruction_index].push(mesh)
         }
         else {
@@ -63,25 +122,26 @@ export function update_viewer(instructions, nodes) {
             const translate     = new THREE.Object3D()
             translate.position.add(parent_coords)
             translate.add(mesh)
-            scene.add(translate);
+            scene.add(translate)
             meshes_by_instr[node.instruction_index].push(translate)
         }
     }
 }
 
-function animate() {
+// The back-end can push new geometry at any time.
+await listen("update_viewer", (event) => {
+    update_viewer(event.payload.instructions, event.payload.nodes)
+})
 
-    renderer.render( scene, camera );
+// 
+await listen("menu_event", (event) => {
+    if (event.payload == "camera") {
+        reset_camera()
+    }
+    else {
+        console.warn(`Unhandled menu item ${event.payload}`)
+    }
+})
 
-}
-
-
-const controls = new ArcballControls( camera, renderer.domElement, scene );
-// const controls = new FlyControls( camera, renderer.domElement );
-
-controls.addEventListener('change', function () {
-    renderer.render(scene, camera);
-});
-
-camera.position.set( 0, 20, 100 );
-controls.update();
+// Request the initial geometry after that we've registered the listeners.
+invoke("request_update_viewer")

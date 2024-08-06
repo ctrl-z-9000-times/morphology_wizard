@@ -2,7 +2,7 @@
 body {
     display: inline-flex;
     flex-flow: row wrap;
-    border: ridge 5px;
+/*    border: ridge 5px;*/
     margin: 0px;
 }
 

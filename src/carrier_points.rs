@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::f64::consts::PI;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[doc(hidden)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CarrierPoints {
     Point {
@@ -63,17 +64,17 @@ pub enum CarrierPoints {
 
 impl CarrierPoints {
     #[allow(dead_code)]
-    pub fn name(&mut self) -> String {
+    pub fn name(&self) -> &str {
         match self {
             Self::Point { name, .. }
             | Self::Sphere { name, .. }
             | Self::Cylinder { name, .. }
             | Self::Cone { name, .. }
             | Self::Box { name, .. }
-            | Self::Import { name, .. } => name.clone(),
+            | Self::Import { name, .. } => name,
         }
     }
-    pub(crate) fn take_name(&mut self) -> String {
+    pub fn take_name(&mut self) -> String {
         match self {
             Self::Point { name, .. }
             | Self::Sphere { name, .. }
@@ -82,6 +83,17 @@ impl CarrierPoints {
             | Self::Box { name, .. }
             | Self::Import { name, .. } => std::mem::take(name),
         }
+    }
+    pub fn set_name(&mut self, new_name: String) {
+        let old_name = match self {
+            Self::Point { name, .. }
+            | Self::Sphere { name, .. }
+            | Self::Cylinder { name, .. }
+            | Self::Cone { name, .. }
+            | Self::Box { name, .. }
+            | Self::Import { name, .. } => name,
+        };
+        *old_name = new_name;
     }
     pub fn num_points(&self) -> u32 {
         match self {

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="application-name" content="Morphology Viewer" />
+    <meta name="description" content="Inspect neuron morphologies" />
+    <meta name="keywords" content="Science,Neuroscience,Neuron,Morphology,WYSIWYG" />
+    <meta name="author" content="David McDougall" />
+    <title>Morphology Viewer</title>
+    <script type="importmap" type="module">
+      {
+        "imports": {
+          "three":         "/three.module.js",
+          "three/addons/": "/examples/jsm/",
+          "viewer":        "/viewer.js"
+        }
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport_div"></div>
+    <script type="module">
+      import {} from 'viewer';
+    </script>
+  </body>
+</html>

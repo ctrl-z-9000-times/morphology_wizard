@@ -13,12 +13,22 @@
     "allowlist": {
       "dialog": {
         "confirm": true
+      },
+      "window": {
+        "unminimize": true,
+        "setFocus": true,
+        "setFullscreen": true,
+        "close": true
+      },
+      "globalShortcut": {
+        "all": true
       }
     },
     "windows": [
       {
         "title": "Morphology Wizard",
-        "label": "morphology_wizard",
+        "label": "wizard",
+        "url":   "index.html",
         "minimizable":       true,
         "maximizable":       true,
         "resizable":         true,
@@ -32,10 +42,54 @@
         "skipTaskbar":       false,
         "acceptFirstMouse":  false,
         "hiddenTitle":       false,
-        "tabbingIdentifier": "morphoology_wizard",
+        "tabbingIdentifier": "morphology_wizard",
         "fileDropEnabled":   false,
-        "width":  1280,
-        "height": 720
+        "height": 720,
+        "width":  1280
+      },
+      {
+        "title": "Morphology Viewer",
+        "label": "viewer",
+        "url":   "viewer.html",
+        "minimizable":       true,
+        "maximizable":       true,
+        "resizable":         true,
+        "closable":          true,
+        "fullscreen":        false,
+        "focus":             true,
+        "decorations":       true,
+        "visible":           false,
+        "alwaysOnTop":       false,
+        "contentProtected":  false,
+        "skipTaskbar":       false,
+        "acceptFirstMouse":  false,
+        "hiddenTitle":       false,
+        "tabbingIdentifier": "morphology_wizard",
+        "fileDropEnabled":   false,
+        "height": 1080,
+        "width":  1920
+      },
+      {
+        "title": "About",
+        "label": "about",
+        "url":   "about.html",
+        "minimizable":       true,
+        "maximizable":       true,
+        "resizable":         false,
+        "closable":          true,
+        "fullscreen":        false,
+        "focus":             true,
+        "decorations":       true,
+        "visible":           false,
+        "alwaysOnTop":       false,
+        "contentProtected":  false,
+        "skipTaskbar":       false,
+        "acceptFirstMouse":  false,
+        "hiddenTitle":       false,
+        "tabbingIdentifier": "morphology_wizard",
+        "fileDropEnabled":   false,
+        "height": 300,
+        "width":  400
       }
     ],
     "updater": {

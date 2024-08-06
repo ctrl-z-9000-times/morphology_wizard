@@ -31,6 +31,8 @@ mod formats;
 mod linalg;
 
 use bitvec::prelude::*;
+#[doc(hidden)]
+pub use carrier_points::CarrierPoints;
 pub use formats::*;
 use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
 #[cfg(feature = "pyo3")]

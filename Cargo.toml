@@ -15,7 +15,7 @@
     path = "src/main.rs"
 
 [build-dependencies]
-    tauri-build = { version = "1.5.3", features = [] }
+    tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
     bitvec = "1"
@@ -25,7 +25,9 @@
     rand = "0.8"
     serde = { version = "1", features = ["derive"] }
     serde_json = "1"
-    tauri = { version = "1.7", features = [ "dialog-confirm"] }
+    tauri = { version = "1.7", features = [ "global-shortcut-all", "window-set-fullscreen", "window-unminimize", "window-set-focus", "window-close", "dialog-confirm"] }
+    tokio = { version = "1", features = ["time"] }
+    webbrowser = { version = "1", features = ["hardened"] }
 
 [features]
     # this feature is used for production builds or when `devPath` points to the
@@ -36,11 +38,8 @@
     custom-protocol = [ "tauri/custom-protocol" ]
 
 [profile.release]
-    opt-level = 3
     lto = true
     codegen-units = 1
-    incremental = false
-    debug = false
     strip = "debuginfo"
 
 [profile.wasm-release]
