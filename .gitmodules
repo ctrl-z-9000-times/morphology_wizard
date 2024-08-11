@@ -1,3 +1,6 @@
 [submodule "ui/entity-maker"]
 	path = ui/entity-maker
 	url = https://github.com/ctrl-z-9000-times/entity-maker.git
+[submodule "three.js"]
+	path = three.js
+	url = https://github.com/mrdoob/three.js.git
