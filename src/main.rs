@@ -148,7 +148,8 @@ fn menu_event(event: WindowMenuEvent) {
     let menu_item_id = event.menu_item_id();
     match menu_item_id {
         "new" => new_file(app),
-        "save" => save_file(app),
+        "save" => save_file(app, false),
+        "save-as" => save_file(app, true),
         "open" => open_file(window.clone()),
         "swc" => export_swc(app.state()),
         "nml" => export_nml(app.state()),
@@ -186,6 +187,9 @@ struct AppState {
     // can share carrier point volumes and have different random points within
     // the shared volume.
     points_cache: HashMap<(String, String), Vec<[f64; 3]>>,
+
+    /// Save file for the current session.
+    current_file: Option<PathBuf>,
 }
 
 impl AppState {
@@ -408,23 +412,37 @@ fn new_file(app: AppHandle) {
                 let mut app_state = app_state.lock().unwrap();
                 app_state.instructions.clear();
                 app_state.carrier_points.clear();
+                app_state.current_file.take();
             }
             window.emit("set_data", ()).unwrap();
         }
     })
 }
 
-fn save_file(app: AppHandle) {
+fn save_file(app: AppHandle, save_as: bool) {
     let json = {
         let app_state = &app.state::<Mutex<AppState>>();
         let app_state = app_state.lock().unwrap();
-        app_state.get_data()
+        let json = app_state.get_data();
+        // If use clicked "Save As" then ignore the file that the model was
+        // loaded from and always prompt them for a new file
+        if !save_as {
+            if let Some(path) = &app_state.current_file {
+                write(path, &json);
+                return;
+            }
+        }
+        json
     };
     FileDialogBuilder::new()
         .set_file_name("morphology.json")
         .save_file(move |path| {
             if let Some(path) = path {
                 write(&path, &json);
+                //
+                let app_state = &app.state::<Mutex<AppState>>();
+                let app_state = &mut app_state.lock().unwrap();
+                app_state.current_file = Some(path);
             }
         })
 }
@@ -484,6 +502,7 @@ fn open_file(window: Window) {
                 let app_state = window.state::<Mutex<AppState>>();
                 let app_state = &mut app_state.lock().unwrap();
                 app_state.set_data(data.instructions, data.carrier_points);
+                app_state.current_file = Some(path);
             }
             // Compute the new nodes and send them to the viewer.
             update_viewer(window.app_handle());
