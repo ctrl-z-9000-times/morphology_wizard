@@ -18,7 +18,7 @@ export function log_info() {
 }
 
 // Setup a 3D perspective camera.
-let camera_fov     = 75         // Field Of View.
+let camera_fov     = 50         // Field Of View.
 let camera_dims    = [640, 480] // Width & Height of render target.
 let camera_dist    = 0.1        // Camera image plane distance.
 let view_distance  = 10000      // Maximum viewing distance.
@@ -35,8 +35,9 @@ function update_camera_size(dims) {
     else {
         camera_dims = [window.innerWidth, window.innerHeight]
     }
-    camera3d.fov = camera_dims[0] / camera_dims[1]
     renderer.setSize(camera_dims[0], camera_dims[1])
+    camera3d.aspect = camera_dims[0] / camera_dims[1]
+    camera3d.updateProjectionMatrix()
 }
 
 // Resize the view-port to take up the whole window.
