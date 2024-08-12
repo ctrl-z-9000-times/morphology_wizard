@@ -101,7 +101,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.tauri.morph_wiz",
+      "identifier": "morph-wiz",
       "shortDescription": "Create realistic neuron morphologies",
       "longDescription": "",
       "copyright": "2024 David McDougall",

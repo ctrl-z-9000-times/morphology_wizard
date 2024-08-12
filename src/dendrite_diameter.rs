@@ -73,7 +73,11 @@ impl QuadraticApprox {
                     self.polynomials[interp2_index].map(|term| term * interp2_weight),
                 ),
             };
-            let polynomial = polynomial.map(|term| term * scale + offset);
+            let polynomial = [
+                polynomial[0] * scale,
+                polynomial[1] * scale,
+                polynomial[2] * scale + offset,
+            ];
             // Calculate the optimal dendrite diameter for all nodes along the
             // path from this terminal to the soma.
             let mut cursor_index = terminal_index;

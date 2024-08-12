@@ -434,17 +434,19 @@ fn save_file(app: AppHandle, save_as: bool) {
         }
         json
     };
-    FileDialogBuilder::new()
-        .set_file_name("morphology.json")
-        .save_file(move |path| {
-            if let Some(path) = path {
-                write(&path, &json);
-                //
-                let app_state = &app.state::<Mutex<AppState>>();
-                let app_state = &mut app_state.lock().unwrap();
-                app_state.current_file = Some(path);
-            }
-        })
+    let mut dialog = FileDialogBuilder::new().set_file_name("morphology.json");
+    if let Some(path) = save_directory() {
+        dialog = dialog.set_directory(path);
+    }
+    dialog.save_file(move |path| {
+        if let Some(path) = path {
+            write(&path, &json);
+            //
+            let app_state = &app.state::<Mutex<AppState>>();
+            let app_state = &mut app_state.lock().unwrap();
+            app_state.current_file = Some(path);
+        }
+    });
 }
 
 fn auto_save(app: AppHandle) {
@@ -467,6 +469,11 @@ async fn auto_save_recurring(app: AppHandle, period_seconds: u64) {
     }
 }
 
+/// Default directory to for save files.
+fn save_directory() -> Option<PathBuf> {
+    tauri::api::path::desktop_dir()
+}
+
 /// Locate the autosave file.
 fn autosave_path(app: &AppHandle) -> Option<PathBuf> {
     let Some(mut path) = app.path_resolver().app_data_dir() else {
@@ -478,35 +485,38 @@ fn autosave_path(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn open_file(window: Window) {
-    FileDialogBuilder::new()
+    let mut dialog = FileDialogBuilder::new()
         .set_file_name("morphology.json")
-        .add_filter("morphology", &[".json"])
-        .pick_file(move |path| {
-            let Some(path) = path else { return };
-            //
-            let Ok(json) = std::fs::read_to_string(&path)
-                .map_err(|err| popup_error_message(&format!("Failed to open file {path:?}\n{err}")))
-            else {
-                return;
-            };
-            //
-            let Ok(data) = serde_json::from_str::<SaveFile>(&json)
-                .map_err(|err| popup_error_message(&format!("Failed to open file {path:?}\n{err}")))
-            else {
-                return;
-            };
-            // Send the data to the front-end.
-            window.emit("set_data", &json).unwrap();
-            // Save the data in the back-end.
-            {
-                let app_state = window.state::<Mutex<AppState>>();
-                let app_state = &mut app_state.lock().unwrap();
-                app_state.set_data(data.instructions, data.carrier_points);
-                app_state.current_file = Some(path);
-            }
-            // Compute the new nodes and send them to the viewer.
-            update_viewer(window.app_handle());
-        })
+        .add_filter(".json", &["json"]);
+    if let Some(path) = save_directory() {
+        dialog = dialog.set_directory(path);
+    }
+    dialog.pick_file(move |path| {
+        let Some(path) = path else { return };
+        //
+        let Ok(json) = std::fs::read_to_string(&path)
+            .map_err(|err| popup_error_message(&format!("Failed to open file {path:?}\n{err}")))
+        else {
+            return;
+        };
+        //
+        let Ok(data) = serde_json::from_str::<SaveFile>(&json)
+            .map_err(|err| popup_error_message(&format!("Failed to open file {path:?}\n{err}")))
+        else {
+            return;
+        };
+        // Send the data to the front-end.
+        window.emit("set_data", &json).unwrap();
+        // Save the data in the back-end.
+        {
+            let app_state = window.state::<Mutex<AppState>>();
+            let app_state = &mut app_state.lock().unwrap();
+            app_state.set_data(data.instructions, data.carrier_points);
+            app_state.current_file = Some(path);
+        }
+        // Compute the new nodes and send them to the viewer.
+        update_viewer(window.app_handle());
+    })
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -549,16 +559,36 @@ fn export_swc(app_state: State<Mutex<AppState>>) {
         app_state.update_nodes();
         morphology_wizard::export_swc(&app_state.instr_cache, &app_state.nodes)
     };
-    //
-    FileDialogBuilder::new()
+    // Prompt for SWC file path.
+    let mut dialog = FileDialogBuilder::new()
         .set_title("Export SWC File")
-        .set_file_name("morphology.swc")
-        .save_file(move |path| {
-            if let Some(path) = path {
-                // TODO: Save all of the files, not just the first.
+        .set_file_name("morphology.swc");
+    if let Some(path) = save_directory() {
+        dialog = dialog.set_directory(path);
+    }
+    dialog.save_file(move |path| {
+        if let Some(path) = path {
+            if swc.len() == 1 {
                 write(&path, &swc[0]);
+            } else {
+                let Some(directory) = path.parent() else { return };
+                let Some(file_name) = path.file_stem() else { return };
+                let extension = path.extension();
+                for (neuron_index, neuron_swc) in swc.iter().enumerate() {
+                    // Insert the neuron index into the file name.
+                    let mut file_name = file_name.to_os_string();
+                    file_name.push(".");
+                    file_name.push(neuron_index.to_string());
+                    if let Some(extension) = extension {
+                        file_name.push(".");
+                        file_name.push(extension);
+                    }
+                    let path = directory.join(file_name);
+                    write(&path, neuron_swc);
+                }
             }
-        });
+        }
+    });
 }
 
 fn export_nml(app_state: State<Mutex<AppState>>) {
@@ -569,15 +599,18 @@ fn export_nml(app_state: State<Mutex<AppState>>) {
         app_state.update_nodes();
         morphology_wizard::export_nml(&app_state.instr_cache, &app_state.nodes)
     };
-    //
-    FileDialogBuilder::new()
+    // Prompt for NML file path.
+    let mut dialog = FileDialogBuilder::new()
         .set_title("Export NeuroML File")
-        .set_file_name("morphology.nml")
-        .save_file(move |path| {
-            if let Some(path) = path {
-                write(&path, &nml);
-            }
-        });
+        .set_file_name("morphology.nml");
+    if let Some(path) = save_directory() {
+        dialog = dialog.set_directory(path);
+    }
+    dialog.save_file(move |path| {
+        if let Some(path) = path {
+            write(&path, &nml);
+        }
+    });
 }
 
 fn export_nrn(app_state: State<Mutex<AppState>>) {
@@ -588,15 +621,18 @@ fn export_nrn(app_state: State<Mutex<AppState>>) {
         app_state.update_nodes();
         morphology_wizard::export_nrn(&app_state.instr_cache, &app_state.nodes)
     };
-    //
-    FileDialogBuilder::new()
+    // Prompt for python script file path.
+    let mut dialog = FileDialogBuilder::new()
         .set_title("Export NEURON Script")
-        .set_file_name("morphology.py")
-        .save_file(move |path| {
-            if let Some(path) = path {
-                write(&path, &nrn);
-            }
-        });
+        .set_file_name("morphology.py");
+    if let Some(path) = save_directory() {
+        dialog = dialog.set_directory(path);
+    }
+    dialog.save_file(move |path| {
+        if let Some(path) = path {
+            write(&path, &nrn);
+        }
+    });
 }
 
 fn write(path: &Path, data: &str) {

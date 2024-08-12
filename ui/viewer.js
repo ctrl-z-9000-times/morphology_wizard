@@ -13,7 +13,7 @@ renderer.setAnimationLoop(() => {
     renderer.render(scene, camera3d)
 })
 // Log performance diagnostics to the console.
-function log_info() {
+export function log_info() {
     console.log(renderer.info)
 }
 
