@@ -224,32 +224,44 @@ impl AppState {
     }
 
     fn update_nodes(&mut self) {
-        //
-        let instruction_names: HashMap<String, u32> = self
+        // Make instruction name->index look-up table.
+        let instruction_names: HashMap<&str, u32> = self
             .instructions
             .iter()
             .enumerate()
-            .map(|(index, instr)| (instr.name().to_string(), index as u32))
+            .map(|(index, instr)| (instr.name(), index as u32))
             .collect();
-        // Fixup and transform the instructions into the proper data structure.
+        // Fixup and transform the instructions into the morphology wizard's internal data structure.
         self.instr_cache = self
             .instructions
             .iter()
             .map(|instr| {
-                let roots = instr.roots().iter().map(|name| instruction_names[name]).collect();
+                // Map the roots from instruction names to indices.
+                let roots = instr
+                    .roots()
+                    .iter()
+                    // Ignore missing (deleted) roots.
+                    .filter_map(|name| instruction_names.get(name.as_str()).cloned())
+                    .collect();
                 //
                 let mut carrier_points = vec![];
                 for name in instr.carrier_points() {
-                    let points = self
-                        .points_cache
-                        .entry((instr.name().to_string(), name.to_string()))
-                        .or_insert_with(|| self.carrier_points[name].generate_points());
-                    carrier_points.extend_from_slice(points);
+                    if let Some(parameters) = self.carrier_points.get(name) {
+                        let points = self
+                            .points_cache
+                            .entry((instr.name().to_string(), name.to_string()))
+                            .or_insert_with(|| parameters.generate_points());
+                        carrier_points.extend_from_slice(points);
+                    }
                 }
                 //
                 instr.instruction(carrier_points, roots)
             })
             .collect();
+        // Ignore invalid roots.
+        for (index, instr) in self.instr_cache.iter_mut().enumerate() {
+            instr.roots.retain(|&r| r < index as u32);
+        }
         // Run the core algorithm.
         self.nodes = create(&self.instr_cache)
             .map_err(|err| popup_error_message(&err.to_string()))
@@ -366,6 +378,10 @@ mod data_sync {
             let app_state: State<Mutex<AppState>> = app.state();
             let app_state = &mut app_state.lock().unwrap();
             let deleted = app_state.carrier_points.remove(name);
+            // Clear the carrier points cache.
+            app_state
+                .points_cache
+                .retain(|(_instr, carrier), _points| carrier != name);
             debug_assert!(deleted.is_some());
         }
         update_viewer(app);
