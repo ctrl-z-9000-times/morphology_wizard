@@ -36,6 +36,8 @@ pub use carrier_points::CarrierPoints;
 pub use formats::*;
 use kiddo::{immutable::float::kdtree::ImmutableKdTree, SquaredEuclidean};
 #[cfg(feature = "pyo3")]
+use pyo3::exceptions::PyValueError;
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -77,7 +79,7 @@ fn morphology_wizard(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(crate::create_py, m)?)?;
     m.add_function(wrap_pyfunction!(crate::formats::import_save_py, m)?)?;
     m.add_function(wrap_pyfunction!(crate::formats::export_swc_py, m)?)?;
-    m.add_function(wrap_pyfunction!(crate::formats::export_nml_py, m)?)?;
+    // m.add_function(wrap_pyfunction!(crate::formats::export_nml_py, m)?)?;
     m.add_function(wrap_pyfunction!(crate::formats::export_nrn_py, m)?)?;
     Ok(())
 }
@@ -225,26 +227,49 @@ impl Instruction {
 }
 
 impl Instruction {
-    fn check(instructions: &[Instruction]) {
+    fn check(instructions: &[Instruction]) -> Result<(), Error> {
         for (instr_index, instr) in instructions.iter().enumerate() {
             if let Some(ref morphology) = instr.morphology {
-                assert!(morphology.balancing_factor >= 0.0);
-                assert!(morphology.extension_distance >= 0.0);
-                assert!(morphology.branch_distance >= 0.0);
-                assert!((0.0..=PI).contains(&morphology.extension_angle));
-                assert!((0.0..=PI).contains(&morphology.branch_angle));
-                assert!(morphology.minimum_diameter > 0.0);
-                assert!(morphology.dendrite_taper >= 0.0);
-                assert!(instr.roots.iter().all(|&root_instr| root_instr < instr_index as u32));
-                assert!(instr.soma_diameter.is_none());
+                if !(morphology.balancing_factor >= 0.0) {
+                    return Err(Error::BalancingFactor(instr_index as u32));
+                }
+                if !(morphology.extension_distance >= 0.0) {
+                    return Err(Error::ExtensionDistance(instr_index as u32));
+                }
+                if !(morphology.branch_distance >= 0.0) {
+                    return Err(Error::BranchDistance(instr_index as u32));
+                }
+                if !(0.0..=PI).contains(&morphology.extension_angle) {
+                    return Err(Error::ExtensionAngle(instr_index as u32));
+                }
+                if !(0.0..=PI).contains(&morphology.branch_angle) {
+                    return Err(Error::BranchAngle(instr_index as u32));
+                }
+                if !(morphology.minimum_diameter > 0.0) {
+                    return Err(Error::MinimumDiameter(instr_index as u32));
+                }
+                if !(morphology.dendrite_taper >= 0.0) {
+                    return Err(Error::DendriteTaper(instr_index as u32));
+                }
+                if !instr.roots.iter().all(|&root_instr| root_instr < instr_index as u32) {
+                    return Err(Error::InvalidRoot(instr_index as u32));
+                }
+                if !instr.soma_diameter.is_none() {
+                    return Err(Error::UnexpectedSomaDiameter(instr_index as u32));
+                }
             } else {
-                assert!(instr.roots.is_empty(), "Missing morphology parameters");
+                if !instr.roots.is_empty() {
+                    return Err(Error::UnexpectedRoots(instr_index as u32));
+                }
                 let Some(soma_diameter) = instr.soma_diameter else {
-                    panic!("Missing soma diameter");
+                    return Err(Error::MissingSomaDiameter(instr_index as u32));
                 };
-                assert!(soma_diameter > 0.0);
+                if !(soma_diameter > 0.0) {
+                    return Err(Error::SomaDiameter(instr_index as u32));
+                }
             }
         }
+        Ok(())
     }
 }
 
@@ -265,6 +290,64 @@ impl Instruction {
             morphology.is_axon()
         } else {
             false
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("instruction index {0}: balancing_factor must be greater than or equal to zero")]
+    BalancingFactor(u32),
+
+    #[error("instruction index {0}: extension_distance must be greater than or equal to zero")]
+    ExtensionDistance(u32),
+
+    #[error("instruction index {0}: branch_distance must be greater than or equal to zero")]
+    BranchDistance(u32),
+
+    #[error("instruction index {0}: extension_angle is out of bounds [0, PI]")]
+    ExtensionAngle(u32),
+
+    #[error("instruction index {0}: branch_angle is out of bounds [0, PI]")]
+    BranchAngle(u32),
+
+    #[error("instruction index {0}: minimum_diameter must be greater than zero")]
+    MinimumDiameter(u32),
+
+    #[error("instruction index {0}: dendrite_taper must be greater than or equal to zero")]
+    DendriteTaper(u32),
+
+    #[error("instruction index {0}: root instruction must come before this index in the instruction list")]
+    InvalidRoot(u32),
+
+    #[error("instruction index {0}: unexpected roots (not an axon or dendrite instruction)")]
+    UnexpectedRoots(u32),
+
+    #[error("instruction index {0}: unexpected soma_diameter (not a soma instruction)")]
+    UnexpectedSomaDiameter(u32),
+
+    #[error("instruction index {0}: missing soma_diameter (required for soma instructions)")]
+    MissingSomaDiameter(u32),
+
+    #[error("instruction index {0}: soma_diameter must be greater than zero")]
+    SomaDiameter(u32),
+}
+
+impl Error {
+    pub fn instruction_index(&self) -> u32 {
+        match *self {
+            Self::BalancingFactor(index) => index,
+            Self::ExtensionDistance(index) => index,
+            Self::BranchDistance(index) => index,
+            Self::ExtensionAngle(index) => index,
+            Self::BranchAngle(index) => index,
+            Self::MinimumDiameter(index) => index,
+            Self::DendriteTaper(index) => index,
+            Self::InvalidRoot(index) => index,
+            Self::UnexpectedRoots(index) => index,
+            Self::UnexpectedSomaDiameter(index) => index,
+            Self::MissingSomaDiameter(index) => index,
+            Self::SomaDiameter(index) => index,
         }
     }
 }
@@ -617,15 +700,16 @@ impl Ord for PotentialSegment {
 /// Returns a list of nodes in topologically sorted order.
 #[cfg(feature = "pyo3")]
 #[pyfunction(name = "create")]
-pub(crate) fn create_py(py: Python<'_>, instructions: Vec<Instruction>) -> Vec<Node> {
+pub(crate) fn create_py(py: Python<'_>, instructions: Vec<Instruction>) -> Result<Vec<Node>, PyErr> {
     py.allow_threads(|| crate::create(&instructions))
+        .map_err(|err| PyValueError::new_err(err.to_string()))
 }
 
 /// Execute a list of neuron growth instructions.
 ///
 /// Returns a list of nodes in topologically sorted order.
-pub fn create(instructions: &[Instruction]) -> Vec<Node> {
-    Instruction::check(instructions);
+pub fn create(instructions: &[Instruction]) -> Result<Vec<Node>, Error> {
+    Instruction::check(instructions)?;
     // Preallocate space for all of the returned nodes.
     let num_nodes = instructions.iter().map(|inst| inst.carrier_points.len()).sum::<usize>();
     let mut nodes = Vec::<Node>::with_capacity(num_nodes);
@@ -643,7 +727,7 @@ pub fn create(instructions: &[Instruction]) -> Vec<Node> {
     }
 
     dendrite_diameter::QuadraticApprox::default().apply(instructions, &mut nodes);
-    nodes
+    Ok(nodes)
 }
 
 fn execute_instruction(instr_index: usize, instr: &Instruction, nodes: &mut Vec<Node>, sections: &[u32]) {

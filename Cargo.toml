@@ -13,9 +13,10 @@
 [[bin]]
     name = "morphology_wizard"
     path = "src/main.rs"
+    required-features = ["tauri-app"]
 
 [build-dependencies]
-    tauri-build = { version = "1.5", features = [] }
+    tauri-build = { version = "1.5", features = [], optional = true }
 
 [dependencies]
     bitvec = "1"
@@ -25,9 +26,10 @@
     rand = "0.8"
     serde = { version = "1", features = ["derive"] }
     serde_json = "1"
-    tauri = { version = "1.7", features = [ "global-shortcut-all", "window-set-fullscreen", "window-unminimize", "window-set-focus", "window-close", "dialog-confirm"] }
-    tokio = { version = "1", features = ["time"] }
-    webbrowser = { version = "1", features = ["hardened"] }
+    tauri = { version = "1.7", features = [ "global-shortcut-all", "window-set-fullscreen", "window-unminimize", "window-set-focus", "window-close", "dialog-confirm"], optional = true }
+    thiserror = { version = "1" }
+    tokio = { version = "1", features = ["time"], optional = true }
+    webbrowser = { version = "1", features = ["hardened"], optional = true }
 
 [features]
     # this feature is used for production builds or when `devPath` points to the
@@ -36,6 +38,7 @@
     # flag to switch between tauri's `dev` and `build` modes.
     # DO NOT REMOVE!!
     custom-protocol = [ "tauri/custom-protocol" ]
+    tauri-app = ["tauri", "tauri-build", "tokio", "webbrowser"]
 
 [profile.release]
     lto = true

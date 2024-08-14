@@ -7,6 +7,7 @@
     "beforeDevCommand": "",
     "devPath": "ui",
     "distDir": "ui",
+    "features": ["tauri-app"],
     "withGlobalTauri": true
   },
   "tauri": {

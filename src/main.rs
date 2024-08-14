@@ -66,7 +66,7 @@ mod menu {
                 .add_item(CustomMenuItem::new("save".to_string(), "Save").accelerator("Ctrl+S"))
                 .add_item(CustomMenuItem::new("save-as".to_string(), "Save As ...").accelerator("Ctrl+Shift+S"))
                 .add_item(CustomMenuItem::new("swc".to_string(), "Export SWC"))
-                .add_item(CustomMenuItem::new("nml".to_string(), "Export NeuroML"))
+                // .add_item(CustomMenuItem::new("nml".to_string(), "Export NeuroML"))
                 .add_item(CustomMenuItem::new("nrn".to_string(), "Export NEURON"))
                 .add_item(CustomMenuItem::new("quit".to_string(), "Quit").accelerator("Ctrl+Q")),
         )
@@ -251,7 +251,9 @@ impl AppState {
             })
             .collect();
         // Run the core algorithm.
-        self.nodes = create(&self.instr_cache);
+        self.nodes = create(&self.instr_cache)
+            .map_err(|err| popup_error_message(&err.to_string()))
+            .unwrap_or(vec![]);
         // Free the combined carrier point lists, since they're re-computed
         // every time the algorithm runs anyways. Otherwise they would be
         // transmitted to the front-end even though they're not needed.
@@ -675,8 +677,6 @@ fn open_viewer(app: AppHandle) {
             dbg!(err);
             return;
         }
-        // Compute and push data to the new viewer window.
-        update_viewer(app);
     }
 }
 

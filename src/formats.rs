@@ -296,6 +296,7 @@ pub fn export_swc(instructions: &[Instruction], nodes: &[Node]) -> Vec<String> {
 /// the user is responsible for writing it to the file system.
 ///
 /// https://docs.neuroml.org
+#[allow(unused)]
 #[cfg(feature = "pyo3")]
 #[pyfunction(name = "export_nml")]
 pub(crate) fn export_nml_py(py: Python<'_>, instructions: Vec<Instruction>, nodes: Vec<Node>) -> String {
@@ -308,10 +309,25 @@ pub(crate) fn export_nml_py(py: Python<'_>, instructions: Vec<Instruction>, node
 /// for writing it to the file system.
 ///
 /// <https://docs.neuroml.org>
+#[doc(hidden)]
 pub fn export_nml(_instructions: &[Instruction], _nodes: &[Node]) -> String {
     // https://docs.neuroml.org/Userdocs/ImportingMorphologyFiles.html
     // https://docs.neuroml.org/Userdocs/Specification.html
+    /*
+    let mut nml = String::new();
+    nml.push_str("<?xml version="1.0" encoding="UTF-8"?>\n");
+    nml.push_str(r#"<neuroml xmlns="http://www.neuroml.org/schema/neuroml2"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.neuroml.org/schema/neuroml2  ../Schemas/NeuroML2/NeuroML_v2beta4.xsd"
+    id="NML2_SimpleMorphology">"#);
 
+    nml.push_str("<cell id=\"SimpleCell\">");
+
+    nml.push_str("<morphology id=\"SimpleCell\">");
+    nml.push_str("</morphology>");
+
+    nml.push_str("</cell>");
+    */
     todo!()
 }
 
