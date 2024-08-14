@@ -85,6 +85,10 @@ function clear_viewer() {
     }
 }
 
+function is_root(node) {
+    return node.parent_index == 4294967295 // 2^32-1
+}
+
 function update_viewer(instructions, nodes) {
 
     clear_viewer()
@@ -96,9 +100,9 @@ function update_viewer(instructions, nodes) {
     const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } )
 
     for (const node of nodes) {
-        if (node.parent_index > nodes.length) {
+        if (is_root(node)) {
             const radius   = 0.5 * node.diameter
-            const slices   = Math.max(2, (0.5 * radius).toFixed())
+            const slices   = Math.max(5, (1 * radius).toFixed())
             const geometry = new THREE.SphereGeometry(radius, 2 * slices, slices)
             const mesh     = new THREE.Mesh(geometry, material)
             mesh.position.set(...node.coordinates)
@@ -106,8 +110,9 @@ function update_viewer(instructions, nodes) {
             meshes_by_instr[node.instruction_index].push(mesh)
         }
         else {
-            const radius        = 0.5 * node.diameter
             const parent        = nodes[node.parent_index]
+            if (is_root(parent)) { continue }
+            const radius        = 0.5 * node.diameter
             const parent_radius = 0.5 * parent.diameter
             const max_radius    = Math.max(radius, parent_radius)
             const radial_slices = Math.max(6, (0.5 * max_radius).toFixed())

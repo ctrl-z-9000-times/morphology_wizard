@@ -588,30 +588,27 @@ impl<'a> WorkingData<'a> {
     fn grow_segment_nodes(&self, nodes: &mut Vec<Node>, mut parent_index: u32, carrier_point: &[f64; 3]) {
         let mut parent_node = &mut nodes[parent_index as usize];
         parent_node.num_children += 1;
-        // Insert an extra node on the surface of the soma.
+        // Insert an extra node at the soma. This node is needed for its
+        // diameter calculation. Otherwise the first segment would start with
+        // the soma's diameter (which is clearly wrong). Place the node at the
+        // center of the soma in order to average the distance
         if parent_node.is_root() {
             let parent_coords = &parent_node.coordinates;
             let parent_radius = 0.5 * parent_node.diameter;
             let path_length = linalg::distance(parent_coords, carrier_point);
-            // Check if the carrier point is inside of the soma's radius.
-            if parent_radius >= path_length {
-                nodes.push(Node::new_segment(
-                    *carrier_point,
-                    self.morphology.minimum_diameter,
-                    parent_index,
-                    self.instruction_index,
-                    path_length,
-                    true,
-                ));
-                return;
-            }
-            // Find the surface of the soma.
             let percent = parent_radius / path_length;
-            let offset = linalg::scale(&linalg::sub(parent_coords, carrier_point), percent);
-            let surface = linalg::add(parent_coords, &offset);
-            //
+            // Check if the carrier point is inside of the soma's radius.
+            // If so then insert the extra node at the center of the soma.
+            let coordinates = if percent >= 1.0 {
+                *parent_coords
+            } else {
+                // Insert the extra node on the surface of the soma.
+                let offset = linalg::scale(&linalg::sub(parent_coords, carrier_point), percent);
+                let surface = linalg::add(parent_coords, &offset);
+                surface
+            };
             nodes.push(Node::new_segment(
-                surface,
+                coordinates,
                 self.morphology.minimum_diameter,
                 parent_index,
                 self.instruction_index,
