@@ -46,7 +46,7 @@
         "tabbingIdentifier": "morphology_wizard",
         "fileDropEnabled":   false,
         "height": 720,
-        "width":  1280
+        "width":  1080
       },
       {
         "title": "Morphology Viewer",
