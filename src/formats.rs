@@ -139,21 +139,25 @@ impl GuiInstruction {
         }
     }
     pub fn instruction(&self, carrier_points: Vec<[f64; 3]>, roots: Vec<u32>) -> Instruction {
+        let name = self.name().to_string();
         let morphology = self.morphology();
         match self {
             Self::Soma { soma_diameter, .. } => Instruction {
+                name,
                 morphology,
                 soma_diameter: Some(*soma_diameter),
                 carrier_points,
                 roots,
             },
             Self::Dendrite { .. } => Instruction {
+                name,
                 morphology,
                 soma_diameter: None,
                 carrier_points,
                 roots,
             },
             Self::Axon { .. } => Instruction {
+                name,
                 morphology,
                 soma_diameter: None,
                 carrier_points,
@@ -199,7 +203,7 @@ pub fn import_save(save_file: &str) -> Result<Vec<Instruction>, serde_json::Erro
         .map(|mut param| (param.take_name(), param))
         .collect();
     // Fixup and transform the instructions into the propper data structure.
-    Ok(instructions
+    let mut instructions: Vec<Instruction> = instructions
         .into_iter()
         .map(|instr| {
             //
@@ -212,13 +216,18 @@ pub fn import_save(save_file: &str) -> Result<Vec<Instruction>, serde_json::Erro
             //
             instr.instruction(carrier_points, roots)
         })
-        .collect())
+        .collect();
+    for (index, instr) in instructions.iter_mut().enumerate() {
+        instr.assign_default_name(index);
+    }
+    Ok(instructions)
 }
 
 /// Enumerates the neurons and identifies which neuron each node is part of.
 ///
 /// Returns (neuron-labels, total-number-of-neurons)  
 /// Where neuron-labels runs parallel to the nodes list.  
+#[allow(unused)]
 fn label_neurons(nodes: &[Node]) -> (Vec<u32>, u32) {
     let mut labels = Vec::with_capacity(nodes.len());
     let mut num_neurons = 0;
@@ -242,7 +251,7 @@ fn label_neurons(nodes: &[Node]) -> (Vec<u32>, u32) {
 /// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 #[cfg(feature = "pyo3")]
 #[pyfunction(name = "export_swc")]
-pub(crate) fn export_swc_py(py: Python<'_>, instructions: Vec<Instruction>, nodes: Vec<Node>) -> Vec<String> {
+pub(crate) fn export_swc_py(py: Python<'_>, instructions: Vec<Instruction>, nodes: Vec<Node>) -> String {
     py.allow_threads(|| crate::export_swc(&instructions, &nodes))
 }
 
@@ -253,20 +262,40 @@ pub(crate) fn export_swc_py(py: Python<'_>, instructions: Vec<Instruction>, node
 ///
 /// For more information about the SWC file format see:  
 /// <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>
-pub fn export_swc(instructions: &[Instruction], nodes: &[Node]) -> Vec<String> {
-    let (neurons, num_neurons) = label_neurons(nodes);
-    let mut swc_files = vec![String::new(); num_neurons as usize];
+pub fn export_swc(instructions: &[Instruction], nodes: &[Node]) -> String {
+    // let (neurons, num_neurons) = label_neurons(nodes);
+    // let mut swc_files = vec![String::new(); num_neurons as usize];
+    let mut swc_file = String::new();
 
-    // Write a header with: the software version, a timestamp, and the neuron number.
-    // The pound symbol "#" is a line comment.
+    const INSTR_TYPE_OFFSET: usize = 256;
+    assert!(instructions.len() + INSTR_TYPE_OFFSET <= u16::MAX as usize);
+
+    // Write the SWC+ header.
+    swc_file.push_str("# <swcPlus>\n");
+    swc_file.push_str("#     <metaData>\n");
+    swc_file.push_str("#         <originalHeader>\n");
+    // Write a header with: the software version and a timestamp.
     let timestamp = chrono::Local::now().to_rfc2822();
-    for (neuron_index, file) in swc_files.iter_mut().enumerate() {
-        *file = format!(
-            "# Morphology Wizard\n# Version: {}\n# {timestamp}\n# Neuron {} / {num_neurons}\n",
-            env!("CARGO_PKG_VERSION"),
-            neuron_index + 1
-        );
+    swc_file.push_str("#             Morphology Wizard\n");
+    swc_file.push_str(&format!("#             Version {}\n", env!("CARGO_PKG_VERSION")));
+    swc_file.push_str(&format!("#             {timestamp}\n"));
+    swc_file.push_str("#         </originalHeader>\n");
+    swc_file.push_str("#     </metaData>\n");
+    swc_file.push_str("#     <customTypes>\n");
+    for (index, instr) in instructions.iter().enumerate() {
+        let id = index + INSTR_TYPE_OFFSET;
+        let name = instr.name(index);
+        if instr.is_soma() {
+            swc_file.push_str(&format!("#         <soma id=\"{id}\" name=\"{name}\" />\n"));
+        } else if instr.is_axon() {
+            swc_file.push_str(&format!("#         <axon id=\"{id}\" name=\"{name}\" />\n"));
+        } else {
+            swc_file.push_str(&format!("#         <dendrite id=\"{id}\" name=\"{name}\" />\n"));
+        }
     }
+    swc_file.push_str("#     </customTypes>\n");
+    swc_file.push_str("#     <customProperties/>\n");
+    swc_file.push_str("# </swcPlus>\n");
 
     for (index, node) in nodes.iter().enumerate() {
         // Ignore the first node attached to the root, as it does not represent
@@ -279,16 +308,7 @@ pub fn export_swc(instructions: &[Instruction], nodes: &[Node]) -> Vec<String> {
             }
         }
         let node_index = index + 1;
-        let instr = &instructions[node.instruction_index() as usize];
-        let node_type = if instr.is_soma() {
-            1
-        } else if instr.is_axon() {
-            2
-        } else if instr.is_dendrite() {
-            3
-        } else {
-            unreachable!()
-        };
+        let node_type = node.instruction_index() as usize + INSTR_TYPE_OFFSET;
         let [x, y, z] = node.coordinates();
         // Only use the radius at the tip of the frustum, ignore radius at the base of the frustum.
         let radius = 0.5 * node.diameter();
@@ -304,10 +324,10 @@ pub fn export_swc(instructions: &[Instruction], nodes: &[Node]) -> Vec<String> {
             }
             None => 0,
         };
-        let neuron_index = neurons[index] as usize;
-        swc_files[neuron_index].push_str(&format!("{node_index} {node_type} {x} {y} {z} {radius} {parent}\n"));
+        // let neuron_index = neurons[index] as usize;
+        swc_file.push_str(&format!("{node_index} {node_type} {x} {y} {z} {radius} {parent}\n"));
     }
-    swc_files
+    swc_file
 }
 
 /// Format a list of nodes in the NeuroML v2 neuron description format.

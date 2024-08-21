@@ -89,26 +89,27 @@
         "hiddenTitle":       false,
         "tabbingIdentifier": "morphology_wizard",
         "fileDropEnabled":   false,
-        "height": 300,
-        "width":  400
+        "height": 400,
+        "width":  600
       }
     ],
+    "security": {
+      "csp": "default-src 'self'",
+      "freezePrototype": true
+    },
     "updater": {
       "active": false
-    },
-    "security": {
-      "csp": null
     },
     "bundle": {
       "active": true,
       "targets": "all",
       "identifier": "morph-wiz",
-      "shortDescription": "Create realistic neuron morphologies",
+      "publisher": "David McDougall",
+      "shortDescription": "Create synthetic neuron morphologies",
       "longDescription": "",
       "copyright": "2024 David McDougall",
       "category": "DeveloperTool",
       "resources": [],
-      "externalBin": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

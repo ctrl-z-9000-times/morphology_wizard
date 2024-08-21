@@ -184,6 +184,10 @@ impl Morphology {
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Instruction {
+    /// Optional, name for this instruction.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+
     /// The morphological parameters control the dendrite / axon growth process.
     ///
     /// Python API:  
@@ -270,6 +274,24 @@ impl Instruction {
             }
         }
         Ok(())
+    }
+    fn name(&self, index: usize) -> String {
+        if self.name.is_empty() {
+            Self::default_name(index)
+        } else {
+            self.name.to_string()
+        }
+    }
+    /// By default instructions without explicitly given names are named after
+    /// their index into the instructions list.
+    fn default_name(index: usize) -> String {
+        format!("{index}")
+    }
+    /// Fill in the `Instruction.name` field's default value.
+    fn assign_default_name(&mut self, index: usize) {
+        if self.name.is_empty() {
+            self.name = Self::default_name(index);
+        }
     }
 }
 

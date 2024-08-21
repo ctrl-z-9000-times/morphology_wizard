@@ -19,9 +19,10 @@ const dendrite_cfg = {
   properties: [
     {
       name: "balancing_factor",
-      desc: "The balancing factor controls the trade-off between minimizing the amount of neurite material and minimizing conduction delays. Lower factors favor using less neurite material, higher factors favor more direct routes from each node to the soma.",
+      desc: "Controls the trade-off between total dendrite length and conduction delay. Lower factors favor using less material, higher factors favor faster conduction.",
       min: 0,
       default: 0.7,
+      step: 0.1,
     },
     {
       name: "maximum_branches",
@@ -36,12 +37,14 @@ const dendrite_cfg = {
       units: "microns",
       min: 0,
       default: 1,
+      step: 0.1,
     },
     {
       name: "dendrite_taper",
       desc: "Scales the size of the dendrite tapering effect. A value of zero will yield a constant diameter dendrite with no tapering. Larger values will yeild larger dendrites. Must be greater than or equal to zero.",
       min: 0,
       default: 0,
+      step: 0.1,
     },
     {
       name: "maximum_segment_length",
@@ -68,9 +71,10 @@ const axon_cfg = {
   properties: [
     {
       name: "balancing_factor",
-      desc: "The balancing factor controls the trade-off between minimizing the amount of neurite material and minimizing conduction delays. Lower factors favor using less neurite material, higher factors favor more direct routes from each node to the soma.",
+      desc: "Controls the trade-off between total axon length and conduction delay. Lower factors favor using less material, higher factors favor faster conduction.",
       min: 0,
-      default: 0.7,
+      default: 0.0,
+      step: 0.1,
     },
     {
       name: "extension_distance",
@@ -86,6 +90,7 @@ const axon_cfg = {
       min: 0,
       max: 3.1415926535897932385,
       default: 3.1415926535897932385,
+      step: 0.01,
     },
     {
       name: "branch_distance",
@@ -101,10 +106,11 @@ const axon_cfg = {
       min: 0,
       max: 3.1415926535897932385,
       default: 2.0245819323134224,
+      step: 0.01,
     },
     {
       name: "maximum_branches",
-      desc: "Maximum number of secondary branches that any segment can have. Root nodes can have an unlimited number of children.",
+      desc: "Maximum number of secondary branches that any segment can have. Root nodes can always have an unlimited number of children.",
       type: "int",
       min: 0,
       default: 1,
@@ -115,6 +121,7 @@ const axon_cfg = {
       units: "microns",
       min: 0,
       default: 1,
+      step: 0.1,
     },
     {
       name: "maximum_segment_length",

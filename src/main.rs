@@ -159,8 +159,9 @@ fn menu_event(event: WindowMenuEvent) {
         // "live" => live(app),
         "regen" => regen_points(app),
         "full" => fullscreen(app),
+        "docs" => open_webpage("todo!"),
         "bugs" => open_webpage("https://github.com/ctrl-z-9000-times/morphology_wizard/issues"),
-        "home" => open_webpage("https://www.google.com"),
+        "home" => open_webpage("todo!"),
         "about" => about(app),
         _ => window.emit("menu_event", menu_item_id).unwrap(),
     }
@@ -586,25 +587,7 @@ fn export_swc(app_state: State<Mutex<AppState>>) {
     }
     dialog.save_file(move |path| {
         if let Some(path) = path {
-            if swc.len() == 1 {
-                write(&path, &swc[0]);
-            } else {
-                let Some(directory) = path.parent() else { return };
-                let Some(file_name) = path.file_stem() else { return };
-                let extension = path.extension();
-                for (neuron_index, neuron_swc) in swc.iter().enumerate() {
-                    // Insert the neuron index into the file name.
-                    let mut file_name = file_name.to_os_string();
-                    file_name.push(".");
-                    file_name.push(neuron_index.to_string());
-                    if let Some(extension) = extension {
-                        file_name.push(".");
-                        file_name.push(extension);
-                    }
-                    let path = directory.join(file_name);
-                    write(&path, neuron_swc);
-                }
-            }
+            write(&path, &swc);
         }
     });
 }
