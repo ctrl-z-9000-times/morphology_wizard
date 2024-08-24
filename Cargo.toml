@@ -19,14 +19,15 @@
     tauri-build = { version = "1.5", features = [], optional = true }
 
 [dependencies]
-    bitvec = "1"
-    chrono = { version = "0.4", features = ["clock"], default-features = false }
-    kiddo  = "4"
-    pyo3   = { version = "0.21", features = ["extension-module", "multiple-pymethods", "serde"], optional = true }
-    rand   = "0.8"
-    serde  = { version = "1", features = ["derive"] }
-    serde_json = "1"
-    tauri  = { version = "1.7", features = [ "global-shortcut-all", "window-set-fullscreen", "window-unminimize", "window-set-focus", "window-close", "dialog-confirm"], optional = true }
+    bitvec     = { version = "1" }
+    chrono     = { version = "0.4", features = ["clock"], default-features = false }
+    csv        = { version = "1" }
+    kiddo      = { version = "4" }
+    pyo3       = { version = "0.21", features = ["extension-module", "multiple-pymethods", "serde"], optional = true }
+    rand       = { version = "0.8" }
+    serde      = { version = "1", features = ["derive"] }
+    serde_json = { version = "1" }
+    tauri      = { version = "1.7", features = ["global-shortcut-all", "window-set-fullscreen", "window-unminimize", "window-set-focus", "window-close", "dialog-confirm"], optional = true }
     thiserror  = { version = "1" }
     tokio      = { version = "1", features = ["time"], optional = true }
     webbrowser = { version = "1", features = ["hardened"], optional = true }
@@ -41,9 +42,9 @@
     tauri-app = ["tauri", "tauri-build", "tokio", "webbrowser"]
 
 [profile.release]
-    lto = true
+    lto           = true
     codegen-units = 1
-    strip = "debuginfo"
+    strip         = "debuginfo"
 
 [profile.wasm-release]
     inherits  = "release"

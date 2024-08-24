@@ -58,6 +58,9 @@ pub enum CarrierPoints {
     },
     Import {
         name: String,
+        /// file is a pair of parallel lists:  
+        /// file.0 is list of file names,  
+        /// file.1 is list of file contents.  
         file: (Vec<String>, Vec<String>),
     },
 }
@@ -228,7 +231,7 @@ impl CarrierPoints {
                     && coordinates[2] <= upper_z
             }
             Self::Import { .. } => {
-                todo!();
+                unimplemented!();
             }
         }
     }
@@ -299,8 +302,12 @@ impl CarrierPoints {
     }
     pub fn generate_points(&self) -> Vec<[f64; 3]> {
         match self {
-            Self::Import { .. } => {
-                todo!()
+            Self::Import { file, .. } => {
+                let mut points = vec![];
+                for (_file_name, data) in file.0.iter().zip(&file.1) {
+                    points.append(&mut CsvRecord::parse(data).unwrap());
+                }
+                points
             }
             Self::Point { x, y, z, .. } => {
                 vec![[*x, *y, *z]]
@@ -376,5 +383,34 @@ impl CarrierPoints {
                     .collect()
             }
         }
+    }
+}
+
+/// For reading imported CSV files.
+#[derive(Deserialize)]
+struct CsvRecord {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
+impl CsvRecord {
+    fn configure_csv() -> csv::ReaderBuilder {
+        let mut builder = csv::ReaderBuilder::new();
+        builder.delimiter(b',');
+        builder.comment(Some(b'#'));
+        builder.quoting(false); // No special treatment for quotes.
+        builder.flexible(true); // Allow extra fields to come and go.
+        builder
+    }
+    fn parse(data: &str) -> Result<Vec<[f64; 3]>, csv::Error> {
+        let builder = Self::configure_csv();
+        let mut reader = builder.from_reader(data.as_bytes());
+        let mut points = vec![];
+        for record in reader.deserialize() {
+            let record: Self = record?;
+            points.push([record.x, record.y, record.z]);
+        }
+        Ok(points)
     }
 }

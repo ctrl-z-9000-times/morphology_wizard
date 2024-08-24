@@ -1,4 +1,4 @@
-//! Create realistic neuron morphologies.
+//! Create synthetic neuron morphologies.
 //!
 //! This implements the TREES algorithm combined with the morphological
 //! constraints of the ROOTS algorithm.
@@ -44,7 +44,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::f64::consts::PI;
 
-/// Create realistic neuron morphologies.
+/// Create synthetic neuron morphologies.
 ///
 /// This implements the TREES algorithm combined with the morphological
 /// constraints of the ROOTS algorithm.
@@ -184,7 +184,8 @@ impl Morphology {
 #[cfg_attr(feature = "pyo3", pyclass(get_all, set_all))]
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Instruction {
-    /// Optional, name for this instruction.
+    /// Optional, descriptive name for this instruction.  
+    /// If missing then a name will be automatically generated.  
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
 

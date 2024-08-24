@@ -208,6 +208,6 @@ export const carrier_points_cfg = {
     cylinder_cfg,
     cone_cfg,
     box_cfg,
-    import_cfg,
+    // import_cfg,
   ]
 }

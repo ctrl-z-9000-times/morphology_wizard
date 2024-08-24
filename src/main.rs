@@ -73,7 +73,7 @@ mod menu {
     }
     fn edit() -> Submenu {
         Submenu::new(
-            "Edit",
+            "Windows",
             Menu::new()
                 .add_item(CustomMenuItem::new("instr".to_string(), "Growth Instructions").accelerator("Ctrl+1"))
                 .add_item(CustomMenuItem::new("points".to_string(), "Carrier Points").accelerator("Ctrl+2"))
@@ -94,9 +94,9 @@ mod menu {
         Submenu::new(
             "Help",
             Menu::new()
-                .add_item(CustomMenuItem::new("docs".to_string(), "Documentation").accelerator("Ctrl+H"))
+                // .add_item(CustomMenuItem::new("docs".to_string(), "Documentation").accelerator("Ctrl+H"))
                 .add_item(CustomMenuItem::new("bugs".to_string(), "Report a Bug"))
-                .add_item(CustomMenuItem::new("home".to_string(), "Visit Homepage"))
+                // .add_item(CustomMenuItem::new("home".to_string(), "Visit Homepage"))
                 .add_item(CustomMenuItem::new("about".to_string(), "About Morphology Wizard")),
         )
     }
