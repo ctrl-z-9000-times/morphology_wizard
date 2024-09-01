@@ -41,7 +41,7 @@ const dendrite_cfg = {
     },
     {
       name: "dendrite_taper",
-      desc: "Scales the size of the dendrite tapering effect. A value of zero will yield a constant diameter dendrite with no tapering. Larger values will yeild larger dendrites. Must be greater than or equal to zero.",
+      desc: "Scales the size of the dendrite tapering effect. A value of zero will yield a constant diameter dendrite with no tapering. Larger values will yield larger dendrites.",
       min: 0,
       default: 0,
       step: 0.1,

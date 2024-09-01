@@ -1,26 +1,23 @@
 # Morphology Wizard #
 
-Create synthetic neuron morphologies.
-
-This program generates the morphology (shape) of neurons. It can be used to
-generate biologically realistic neurons, or to generate novel synthetic
-neurons. This implements the TREES algorithm combined with the morphological
-constraints of the ROOTS algorithm.
+This program generates neuron morphologies. It can generate both biologically
+realistic neurons and novel synthetic neurons. It implements the TREES
+algorithm combined with the morphological constraints of the ROOTS algorithm.
 
 
 ## Installation & Usage ##
 
-TODO how to install gui?  
+The morphology wizard has [**installers**](https://github.com/ctrl-z-9000-times/morphology_wizard/releases) for Windows, Mac, and Linux.  
 
-Once you've successfully installed the program, please proceed to the [**tutorial**]().
+Once you've successfully installed the program, please proceed to the [**tutorial**](/tutorial/tutorial.md).
 
 
 ## Build Instructions ##
 
 There are three ways to use this project:
-* The rust library
-* The python library
-* The graphical user interface
+* Rust Library
+* Python Library
+* Graphical User Interface
 
 ### Building the Rust Library ###
 
@@ -73,6 +70,14 @@ cargo tauri build
 ```
 
 Tauri should put the resulting installers in the folder: `morphology_wizard/target/release/bundle/`
+
+
+### Building Installers for all platforms ###
+
+This project uses github actions to provision virtual machines for all supported
+platforms. All builds are native, the tauri framework does not yet support
+cross-compilation.  
+To trigger the action: make a new tag using the format `app-v*`.
 
 
 ## References ##
